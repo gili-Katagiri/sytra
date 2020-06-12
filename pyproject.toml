@@ -6,6 +6,8 @@ authors = ["gilito <devel@gilito.net>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+matplotlib = "^3.2.1"
+pandas = "^1.0.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
