@@ -34,6 +34,8 @@ def test_follow(params_fixture):
     print(sdh)
     
     with pytest.raises(KeyError): sm.follow_stock(code)
+
+    sm.make_summarybase()
     
     print(sm)
     sm.allocate()

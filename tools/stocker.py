@@ -140,15 +140,15 @@ class StockManeger():
 
         summary_base = pd.DataFrame(
                 [
-                    ['RSS|\'{0}.T\'!{1}'.format( code, value) \
+                    ['=RSS|\'{0}.T\'!{1}'.format( code, value) \
                         for value in cls.RECEPTION_COLUMNS_JA ] \
                     for code in follows
                 ],\
                 columns = cls.RECEPTION_COLUMNS
             )
         summary_base_path = cls.stock_filepath( 'summary_base.csv' )
-        with open( sumary_base_path, mode='w') as f:
-            f.write( update.strftime('%Y-%m-%d'))
+        with open( summary_base_path, mode='w') as f:
+            f.write( update.strftime('%Y-%m-%d') + '\n' )
         summary_base.to_csv( summary_base_path, mode='a', index=False )
 
     def allocate(self):
