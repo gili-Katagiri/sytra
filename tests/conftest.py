@@ -1,7 +1,13 @@
-import sys
-from pathlib import Path
+from lib.stocker import StockDays
+from lib.stocker import StockManegerParams
+from lib.stocker import StockManeger as SM
+import datetime
 
-# /root/project
-src = Path().cwd()
+SM.STOCK_ROOT = './tests/stocks'
 
-sys.path.append( str(src) )
+day = datetime.date(2020,6,19)
+days = StockDays(day)
+
+sm = SM()
+sm._smp = StockManegerParams( [], days)
+sm._dump()

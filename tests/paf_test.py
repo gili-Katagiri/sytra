@@ -1,5 +1,5 @@
 import pytest
-from tools import paftools as paf
+from lib import paftools as paf
 
 EXEC_BY_TMUX = True
 

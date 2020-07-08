@@ -1,11 +1,13 @@
 import pytest
-from tools.stocker import StockManeger as SM
-from tools.stocker import STOCK_MANEGER as sm
-from tools.stocker import StockDataHolder
+from lib.stocker import StockManeger as SM
+from lib.stocker import StockDataHolder
 import os
 import datetime
 
 code = 1000
+sm = SM()
+
+print(sm.stock_filepath(1000))
 
 @pytest.fixture
 def params_fixture():

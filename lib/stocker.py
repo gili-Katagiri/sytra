@@ -62,7 +62,7 @@ class StockManegerParams(NamedTuple):
     marked_days: StockDays
 
 class StockManeger():
-    STOCK_ROOT: str = './tests/stocks'
+    STOCK_ROOT: str = '../stocks'
     PARAMS_FILEPATH: str = '.params'
     STANDARD_COLUMNS: Tuple[str] = ('Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
     RECEPTION_COLUMNS: Tuple[str] = ('Code', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
@@ -194,8 +194,6 @@ class StockManeger():
         s = 'follows: {0}\nmarked days: ({1})'.format( follows, days)
         return s
 
-STOCK_MANEGER = StockManeger()
-
 class StockDataHolder():
     def __init__(self, stock_code: int):
         # may be NamedTuple
@@ -203,13 +201,12 @@ class StockDataHolder():
         self.read_stock_csv(stock_code)
 
     def read_stock_csv(self, stock_code: int)-> pd.DataFrame: 
-        sm = STOCK_MANEGER
-        path: Path = sm.stock_filepath(stock_code, 'stock.csv')
+        path: Path = StockManeger.stock_filepath(stock_code, 'stock.csv')
         if not path.exists():
             raise FileNotFoundError('Error: directry {0}/{1} is not exists.'.format(STOCK_ROOT, stock_code))
 
         stock_data = pd.read_csv(path,\
-                    header=0, names=sm.STANDARD_COLUMNS,\
+                    header=0, names=StockManeger.STANDARD_COLUMNS,\
                     index_col='Date', parse_dates=True,\
                     dtype='float', encoding='UTF-8'
             )

@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "tools"
+name = "sytra"
 version = "0.1.0"
-description = "Tools for python progruming."
+description = "System Trade Application"
 authors = ["gilito <devel@gilito.net>"]
 
 [tool.poetry.dependencies]
