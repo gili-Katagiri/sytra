@@ -68,11 +68,11 @@ class StockManeger():
     PARAMS_FILEPATH: str = '.params'
     STANDARD_COLUMNS: Tuple[str] = ('Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
     RECEPTION_COLUMNS: Tuple[str] = ('Code', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
-    RECEPTION_COLUMNS_JA: Tuple[str] = ('銘柄コード', '始値', '高値', '安値', '終値', '出来高', '前日比', '貸株残高', '融資残高', '貸株倍率', '逆日歩')
+    RECEPTION_COLUMNS_JA: Tuple[str] = ('銘柄コード', '始値', '高値', '安値', '現在値', '出来高', '前日比', '残高貸株', '残高融資', '貸借倍率', '逆日歩')
 
     @classmethod
     def stock_filepath(cls, *args)-> Path:
-        path: Path = Path( __file__,cls.STOCK_ROOT )
+        path: Path = Path( __file__, cls.STOCK_ROOT )
         for arg in args:
             path = path / str(arg)
         return path.resolve()
@@ -148,9 +148,10 @@ class StockManeger():
                 columns = cls.RECEPTION_COLUMNS
             )
         summary_base_path = cls.stock_filepath( 'summary_base.csv' )
-        with open( summary_base_path, mode='w') as f:
+        with open( summary_base_path, mode='w', encoding='cp932') as f:
             f.write( update.strftime('%Y-%m-%d') + '\n' )
-        summary_base.to_csv( summary_base_path, mode='a', index=False )
+        summary_base.to_csv( summary_base_path, mode='a',\
+                                index=False , encoding='cp932')
 
     def allocate(self):
         cls = self.__class__
@@ -162,7 +163,7 @@ class StockManeger():
             raise RuntimeError('summary.csv has un-scheduled day\'s data.')
         
         summary = pd.read_csv( summary_path, skiprows=1, header=0,\
-                index_col=cls.RECEPTION_COLUMNS[0], encoding='UTF-8')
+                index_col=cls.RECEPTION_COLUMNS[0], encoding='cp932')
         summary.insert(0, cls.STANDARD_COLUMNS[0], date_str)
         follows = self.get_follows()
 
@@ -187,7 +188,6 @@ class StockManeger():
         shutil.move( summary_path, logpath )
         
         self.get_markeddays()._day_update()
-        self._dump()
 
     def __str__(self)-> str:
         follows = self.get_follows()
