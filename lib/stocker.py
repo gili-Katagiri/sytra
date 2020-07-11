@@ -29,9 +29,11 @@ class StockDays():
         holidays += [by+'-12-31', fy+'-01-01', fy+'-01-02', fy+'-01-03']
         return holidays
 
-    def __init__( self, lastday: datetime.date ):
-        self._last_update = lastday
-        self._next_update = self._next_trading()
+    def __init__( self, candday: datetime.date ):
+        # if cancdday is not Trading Day, next process works well
+        cls = self.__class__
+        self._next_update = cls.step_trading(candday, rewind=False)
+        self._last_update = cls.step_trading(self._next_update, rewind=True)
 
     def get_lastupdate(self)-> datetime.date: return self._last_update
     def get_nextupdate(self)-> datetime.date: return self._next_update
@@ -62,7 +64,7 @@ class StockManegerParams(NamedTuple):
     marked_days: StockDays
 
 class StockManeger():
-    STOCK_ROOT: str = '../stocks'
+    STOCK_ROOT: str = '../../stocks'
     PARAMS_FILEPATH: str = '.params'
     STANDARD_COLUMNS: Tuple[str] = ('Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
     RECEPTION_COLUMNS: Tuple[str] = ('Code', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
@@ -70,7 +72,7 @@ class StockManeger():
 
     @classmethod
     def stock_filepath(cls, *args)-> Path:
-        path: Path = Path( cls.STOCK_ROOT )
+        path: Path = Path( __file__,cls.STOCK_ROOT )
         for arg in args:
             path = path / str(arg)
         return path.resolve()
@@ -131,7 +133,6 @@ class StockManeger():
 
         # stock.csv -> primitive.csv ?
         follows.remove(stock_code)
-        self._dump()
 
     def make_summarybase(self):
         cls = self.__class__
