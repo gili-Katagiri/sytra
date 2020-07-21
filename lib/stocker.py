@@ -66,6 +66,7 @@ class StockManegerParams(NamedTuple):
 class StockManeger():
     STOCK_ROOT: str = '../../stocks'
     PARAMS_FILEPATH: str = '.params'
+    PRIMITIVE_INITPATH: str = '.prinit'
     STANDARD_COLUMNS: Tuple[str] = ('Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
     RECEPTION_COLUMNS: Tuple[str] = ('Code', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
     RECEPTION_COLUMNS_JA: Tuple[str] = ('銘柄コード', '始値', '高値', '安値', '現在値', '出来高', '前日比', '残高貸株', '残高融資', '貸借倍率', '逆日歩')
@@ -76,6 +77,21 @@ class StockManeger():
         for arg in args:
             path = path / str(arg)
         return path.resolve()
+    @classmethod
+    def follow_init(cls):
+        import os
+        path=cls.stock_filepath(cls.PRIMITIVE_INITPATH)
+        if not path.exists():
+            raise FileNotFoundError('{0} is not found.'.format(path))
+        for prifile in path.glob('*.csv'):
+            # /path/to/stockroot/flinit/9999.csv -> 9999
+            fname = str(prifile).split('/')[-1][0:4]
+            # /path/to/stockroot/9999
+            codepath = cls.stock_filepath(fname)
+            if codepath.exists():
+                raise ValueError('{0} is exists.'.format(codepath))
+            os.mkdir(codepath)
+            os.rename(str(prifile), str(codepath/'primitive.csv'))
     
     def __init__(self):
         cls = self.__class__
@@ -100,18 +116,20 @@ class StockManeger():
     def follow_stock( self, stock_code: int):
         cls = self.__class__
         follows = self.get_follows()
+        # paths
+        dirname = cls.stock_filepath(stock_code)
+        filepath = dirname / 'primitive.csv'
 
         if stock_code in follows:
             raise KeyError('{0} is already followed.'.format(stock_code))
+        if not filepath.exists():
+            raise FileNotFoundError('Error: You have to prepare {0}.'.format(str(filepath)))
 
-        dirname = cls.stock_filepath(stock_code)
-        path = dirname / 'primitive.csv'
-        if not path.exists():
-            raise FileNotFoundError('Error: You have to prepare {0}.'.format(str(path)))
-        primitive_df = pd.read_csv( path, header=0, dtype=str,\
+        # read csv
+        primitive_df = pd.read_csv( filepath, header=0, dtype=str,\
                 names=cls.STANDARD_COLUMNS, index_col=cls.STANDARD_COLUMNS[0],\
                 parse_dates=True, encoding='UTF-8' )
-
+        
         lastidx = self.get_markeddays().get_lastupdate()
         dfidx = primitive_df.index[-1]
         if not lastidx == dfidx:
@@ -121,8 +139,12 @@ class StockManeger():
             primitive_df[col] = primitive_df[col].str\
                     .replace(',','').replace('-','0').astype('float')
         
+        # add code and sort
         follows.append( stock_code )
-        os.rename( path, dirname/'.primitive.csv' )
+        follows.sort()
+        
+        # mv primitive.csv .primitive.csv & make stock.csv
+        os.rename( filepath, dirname/'.primitive.csv' )
         primitive_df.to_csv( dirname / 'stock.csv' )
     
     def unfollow_stock( self, stock_code: int):
@@ -130,8 +152,20 @@ class StockManeger():
 
         if not stock_code in follows:
             raise KeyError('follows is not having code: {0}.'.format(stock_code))
+        
+        cls = self.__class__
+        dirname = cls.stock_filepath(stock_code)
+        filepath = dirname / 'stock.csv'
+        
+        # search noname and rename stocks
+        cnt = 1
+        noname = dirname/'removed1'
+        while( noname.exists() ):
+            cnt += 1
+            noname = dirname/('removed{0}'.format(cnt))
+        os.rename( filepath, noname)
 
-        # stock.csv -> primitive.csv ?
+        # remove code
         follows.remove(stock_code)
 
     def make_summarybase(self):
