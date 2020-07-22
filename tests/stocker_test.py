@@ -12,10 +12,11 @@ print(sm.stock_filepath(1000))
 @pytest.fixture
 def params_fixture():
 
+    print(sm)
+
     yield
     path = SM.stock_filepath(code)
     os.rename(path / '.primitive.csv', path / 'primitive.csv')
-    os.remove(path/'stock.csv')
 
     sm.unfollow_stock( code )
     sm.get_markeddays()._day_rewind()
