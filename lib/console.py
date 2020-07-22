@@ -1,10 +1,11 @@
 import argparse
 from stocker import StockManeger
+from commands.follow import add_follow_parser
 #from actions import AllocateAction, FollowAction, MkbaseAction
 
 def AllocateAction(sm: StockManeger, args: argparse.Namespace):
     sm.allocate()
-
+'''
 def FollowAction(sm: StockManeger, args: argparse.Namespace):
     for code in args.codes:
         print('{0}... '.format(code), end='')
@@ -15,7 +16,7 @@ def FollowAction(sm: StockManeger, args: argparse.Namespace):
             print(e)
         else:
             print('Complete!')
-        
+'''        
 
 def MkbaseAction(sm: StockManeger, args: argparse.Namespace):
    sm.make_summarybase() 
@@ -28,7 +29,7 @@ def main():
         )
     subparsers = root_parser.add_subparsers(
             title='AVAILABLE SUB-COMMANDS',
-            dest='com',
+            #dest='com',
             metavar='COMMAND'
         )
 
@@ -41,6 +42,7 @@ def main():
         )
     parser_allocate.set_defaults(func=AllocateAction)
     
+    '''
     # follow
     parser_follow = subparsers.add_parser(
             'follow',
@@ -51,6 +53,8 @@ def main():
             nargs='+',help='codes add new',metavar='CODE'
         )
     parser_follow.set_defaults(func=FollowAction)
+    '''
+    add_follow_parser(subparsers)
 
     # mkbase (make summary base)
     parser_mkbase = subparsers.add_parser(
@@ -61,8 +65,13 @@ def main():
 
     # load StockManeger
     sm = StockManeger()
+    
+    print(sm)
 
     args = root_parser.parse_args()
-    args.func(sm, args)
+    if hasattr(args, 'func'):
+        args.func(sm, args)
+
+    print(sm)
 
     sm._dump()

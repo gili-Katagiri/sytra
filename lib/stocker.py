@@ -78,20 +78,24 @@ class StockManeger():
             path = path / str(arg)
         return path.resolve()
     @classmethod
-    def follow_init(cls):
-        import os
+    def follow_init(cls)-> List[int]:
         path=cls.stock_filepath(cls.PRIMITIVE_INITPATH)
         if not path.exists():
-            raise FileNotFoundError('{0} is not found.'.format(path))
+            raise FileNotFoundError('Error: {0} is not found.'.format(path))
+
+        stocks = []
         for prifile in path.glob('*.csv'):
             # /path/to/stockroot/flinit/9999.csv -> 9999
             fname = str(prifile).split('/')[-1][0:4]
             # /path/to/stockroot/9999
             codepath = cls.stock_filepath(fname)
             if codepath.exists():
-                raise ValueError('{0} is exists.'.format(codepath))
+                print('WARNING: Passing {0}, directory is exists.'.format(codepath))
+                continue
             os.mkdir(codepath)
             os.rename(str(prifile), str(codepath/'primitive.csv'))
+            stocks.append(int(fname))
+        return stocks
     
     def __init__(self):
         cls = self.__class__
@@ -121,7 +125,7 @@ class StockManeger():
         filepath = dirname / 'primitive.csv'
 
         if stock_code in follows:
-            raise KeyError('{0} is already followed.'.format(stock_code))
+            raise KeyError('Error: {0} is already followed.'.format(stock_code))
         if not filepath.exists():
             raise FileNotFoundError('Error: You have to prepare {0}.'.format(str(filepath)))
 
@@ -133,27 +137,27 @@ class StockManeger():
         lastidx = self.get_markeddays().get_lastupdate()
         dfidx = primitive_df.index[-1]
         if not lastidx == dfidx:
-            raise IndexError('this primitive file has not latest values.\n\tlast" {0}, primitive: {1}'.format(lastidx, dfidx))
+            raise IndexError('Error: this primitive file has not latest values.\n\tlast" {0}, primitive: {1}'.format(lastidx, dfidx))
 
         for col in cls.STANDARD_COLUMNS[1:]:
             primitive_df[col] = primitive_df[col].str\
                     .replace(',','').replace('-','0').astype('float')
         
-        # add code and sort
+        # add code 
         follows.append( stock_code )
-        follows.sort()
         
         # mv primitive.csv .primitive.csv & make stock.csv
         os.rename( filepath, dirname/'.primitive.csv' )
         primitive_df.to_csv( dirname / 'stock.csv' )
     
     def unfollow_stock( self, stock_code: int):
+        cls = self.__class__
         follows = self.get_follows()
 
         if not stock_code in follows:
-            raise KeyError('follows is not having code: {0}.'.format(stock_code))
+            raise KeyError('Error: follows is not having code: {0}.'.format(stock_code))
         
-        cls = self.__class__
+        # paths
         dirname = cls.stock_filepath(stock_code)
         filepath = dirname / 'stock.csv'
         
@@ -167,6 +171,23 @@ class StockManeger():
 
         # remove code
         follows.remove(stock_code)
+
+    def itr_follow( self, codes: List[int], defollow=False):
+        # define follow or defollow
+        proc = self.follow_stock if not defollow else self.unfollow_stock
+        failure = []
+        for code in codes:
+            print('Processing {0}...'.format(code), end='')
+            try: proc(code)
+            except Exception as e:
+                failure.append(code)
+                print(e)
+            else: print('complete')
+
+        # sort
+        self.get_follows().sort()
+
+        return failure
 
     def make_summarybase(self):
         cls = self.__class__
@@ -194,7 +215,7 @@ class StockManeger():
         nextday = self.get_markeddays().get_nextupdate()
 
         if date_str != nextday.strftime('%Y-%m-%d'):
-            raise RuntimeError('summary.csv has un-scheduled day\'s data.')
+            raise RuntimeError('Error: summary.csv has un-scheduled day\'s data.')
         
         summary = pd.read_csv( summary_path, skiprows=1, header=0,\
                 index_col=cls.RECEPTION_COLUMNS[0], encoding='cp932')
@@ -203,14 +224,14 @@ class StockManeger():
 
         if len( summary.columns ) != len( cls.STANDARD_COLUMNS ):
             raise KeyError(
-                    'columns are irregal. {0} =? {1}'.format(
+                    'Error: columns are irregal. {0} =? {1}'.format(
                         summary.columns, cls.STANDARD_COLUMNS
                     )
                 )
         
         if len( summary.index ) != len( follows ):
             raise IndexError(
-                    'stock-code not complete.\ngive:{0}, needs:{1}.'.format(
+                    'Error: stock-code not complete.\ngive:{0}, needs:{1}.'.format(
                         summary.index, follows
                     )
                 )
