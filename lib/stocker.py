@@ -1,10 +1,9 @@
 import pandas as pd
 import os
 import linecache
-import shutil
 from pathlib import Path
 from typing import Union, NamedTuple, List, Tuple
-import pickle
+import toml
 import datetime
 
 class StockDays():
@@ -43,7 +42,7 @@ class StockDays():
     def _pre_trading(self)-> datetime.date:
         return self.__class__.step_trading(self._last_update, rewind=True)
 
-    def _day_update(self):
+    def _day_advance(self):
         self._last_update = self._next_update
         self._next_update = self._next_trading()
     
@@ -78,6 +77,15 @@ class StockManeger():
             path = path / str(arg)
         return path.resolve()
     @classmethod
+    def filerows(cls, filepath):
+        return sum( 1 for _ in open(str(filepath)) )
+    @classmethod
+    def file_tail( cls, filepath):
+        size = cls.filerows(filepath)
+        line = linecache.getline( str(filepath), size )
+        data = [ s.strip() for s in line.split(',') ]
+        return data
+    @classmethod
     def follow_init(cls)-> List[int]:
         path=cls.stock_filepath(cls.PRIMITIVE_INITPATH)
         if not path.exists():
@@ -105,14 +113,25 @@ class StockManeger():
             days = StockDays( datetime.date.today() )
             self._smp = StockManegerParams( [], days)
         else:
-            with open( filepath, mode='rb' ) as f:
-                self._smp = pickle.load(f)
+            with open( filepath, mode='r' ) as f:
+                tomldic = toml.load(f)
+                days = StockDays(datetime.date.fromisoformat(tomldic['stocker']['days']['update']['latest']))
+                self._smp = StockManegerParams(tomldic['stocker']['follows'], days)
 
     def _dump(self):
         cls = self.__class__
         filepath = cls.stock_filepath( cls.PARAMS_FILEPATH )
-        with open( filepath, mode='wb') as f:
-            pickle.dump( self._smp, f)
+
+        days = self.get_markeddays()
+        lday, nday = days.get_lastupdate(), days.get_nextupdate()
+        
+        tomldic = {'stocker': {
+                    'follows': self.get_follows(), 
+                    'days': {'update':{'latest': str(lday), 'next':str(nday)}}
+                }}
+
+        with open( filepath, mode='w') as f:
+            toml.dump( tomldic, f)
 
     def get_follows(self)-> List[int]: return self._smp.follows
     def get_markeddays(self)-> StockDays: return self._smp.marked_days
@@ -131,17 +150,15 @@ class StockManeger():
 
         # read csv
         primitive_df = pd.read_csv( filepath, header=0, dtype=str,\
-                names=cls.STANDARD_COLUMNS, index_col=cls.STANDARD_COLUMNS[0],\
-                parse_dates=True, encoding='UTF-8' )
+                names=cls.STANDARD_COLUMNS, encoding='UTF-8' )
         
-        lastidx = self.get_markeddays().get_lastupdate()
-        dfidx = primitive_df.index[-1]
+        lastidx = self.get_markeddays().get_lastupdate().strftime('%Y/%m/%d')
+        dfidx = primitive_df.iat[-1, 0]
         if not lastidx == dfidx:
-            raise IndexError('Error: this primitive file has not latest values.\n\tlast" {0}, primitive: {1}'.format(lastidx, dfidx))
-
-        for col in cls.STANDARD_COLUMNS[1:]:
-            primitive_df[col] = primitive_df[col].str\
-                    .replace(',','').replace('-','0').astype('float')
+            raise IndexError('Error: this primitive file has not latest values.\n\tlast: {0}, primitive: {1}'.format(lastidx, dfidx))
+        
+        # compensate missing values
+        self.compensation( primitive_df )
         
         # add code 
         follows.append( stock_code )
@@ -149,6 +166,29 @@ class StockManeger():
         # mv primitive.csv .primitive.csv & make stock.csv
         os.rename( filepath, dirname/'.primitive.csv' )
         primitive_df.to_csv( dirname / 'stock.csv' )
+
+    def compensation( self, df):
+        cls = self.__class__
+        col_open = df.columns.get_loc('Open')
+        col_close = df.columns.get_loc('Close')
+
+        # get index needed to compensate
+        idxs = list( df.query('Open=="-"').index )
+        if 0 in idxs:
+            raise ValueError('Error: primitive LEAD value is not available!')
+        # set the day before close value 
+        for idx in idxs:
+            val = df.iat[idx-1, col_close]
+            df.iloc[idx, col_open:col_close+1] = [ val for _ in range(4) ]
+
+        # datetime index
+        df['Date'] = pd.to_datetime( df['Date'] )
+        df.set_index( 'Date', inplace=True )
+        
+        # '-' -> 0 and as float
+        for col in cls.STANDARD_COLUMNS[1:]:
+            df[col] = df[col].str.replace(',','').replace('-','0').astype('float')
+
     
     def unfollow_stock( self, stock_code: int):
         cls = self.__class__
@@ -208,7 +248,7 @@ class StockManeger():
         summary_base.to_csv( summary_base_path, mode='a',\
                                 index=False , encoding='cp932')
 
-    def allocate(self):
+    def allocate_init(self) :
         cls = self.__class__
         summary_path = cls.stock_filepath( 'summary.csv' )
         date_str = linecache.getline( str(summary_path), 1 ).strip()
@@ -223,26 +263,34 @@ class StockManeger():
         follows = self.get_follows()
 
         if len( summary.columns ) != len( cls.STANDARD_COLUMNS ):
-            raise KeyError(
-                    'Error: columns are irregal. {0} =? {1}'.format(
-                        summary.columns, cls.STANDARD_COLUMNS
-                    )
-                )
+            raise KeyError('Error: columns are irregal. {0}'.format(summary.columns) )
         
         if len( summary.index ) != len( follows ):
-            raise IndexError(
-                    'Error: stock-code not complete.\ngive:{0}, needs:{1}.'.format(
-                        summary.index, follows
-                    )
-                )
+            raise IndexError('Error: stock-code not complete.\ngive:{0}, needs:{1}.'.format(summary.index, follows) )
 
+        return summary, summary_path, date_str
+
+    def allocate( self, summary: pd.DataFrame ):
+        cls = self.__class__
+        follows = self.get_follows()
+        failure = []
         for code in follows:
-            summary.loc[[code]].to_csv( cls.stock_filepath( code, 'stock.csv'),\
+            
+            print('proc: {0}...'.format(code), end='')
+
+            data = summary.loc[[code]]
+            last_line = cls.file_tail( cls.stock_filepath( code, 'stock.csv') )
+
+            if not data.iat[0,4] - data.iat[0,6] == float(last_line[4]):
+                print('Close Value Error.')
+                failure.append(code)
+                continue
+
+            data.to_csv( cls.stock_filepath( code, 'stock.csv'),\
                     mode='a', header=False, index=False)
-        logpath = cls.stock_filepath( 'log', date_str.replace('-','') )
-        shutil.move( summary_path, logpath )
-        
-        self.get_markeddays()._day_update()
+            print('Complete!')
+
+        return failure
 
     def __str__(self)-> str:
         follows = self.get_follows()

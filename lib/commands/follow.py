@@ -11,9 +11,15 @@ class SetDefollow(argparse.Action):
         setattr(namespace, self.dest, values)
 
 def FollowAction( sm, namespace):
+    
+    summ = sm.stock_filepath('summary.csv')
+    if summ.exists and not namespace.force:
+        print('WARNING: {0} is exists!'.format(summ))
+        print('If you want to force it, add -f/--force option.')
+        return 
 
     defollow = False
-    
+        
     if namespace.funcstr=='init':
         codes = sm.follow_init()
     elif namespace.funcstr=='spec':
@@ -28,22 +34,12 @@ def FollowAction( sm, namespace):
     if flist: # flist is not empty
         print("Failure codes: {0}".format(flist))
 
-    if namespace.mkbase:
-        sm.make_summarybase()
-
 def add_follow_parser( subparsers ):
     parser_follow = subparsers.add_parser(
             'follow',
             help='add the codes to follows.'
         )
     parser_follow.set_defaults(funcstr='init')
-
-    parser_follow.add_argument(
-            '-s', '--specific',
-            action=SetSpecFollow, default=argparse.SUPPRESS,
-            nargs='+', type=int, 
-            help='Specify the stock code to follow.', metavar='CODE', dest='fcodes'
-        )
 
     parser_follow.add_argument(
             '-d', '--defollow',
@@ -53,8 +49,15 @@ def add_follow_parser( subparsers ):
         )
 
     parser_follow.add_argument(
-            '--no-make', action='store_false', 
-            help='Do not create summary_base.csv after follow.', dest='mkbase'
+            '-f', '--force', action='store_true',
+            help='Forcibly execute follow process'
+        )
+
+    parser_follow.add_argument(
+            '-s', '--specific',
+            action=SetSpecFollow, default=argparse.SUPPRESS,
+            nargs='+', type=int, 
+            help='Specify the stock code to follow.', metavar='CODE', dest='fcodes'
         )
 
     parser_follow.set_defaults( func=FollowAction) 
