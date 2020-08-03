@@ -3,7 +3,7 @@ import os
 import linecache
 from pathlib import Path
 from typing import Union, NamedTuple, List, Tuple
-import pickle
+import toml
 import datetime
 
 class StockDays():
@@ -113,14 +113,25 @@ class StockManeger():
             days = StockDays( datetime.date.today() )
             self._smp = StockManegerParams( [], days)
         else:
-            with open( filepath, mode='rb' ) as f:
-                self._smp = pickle.load(f)
+            with open( filepath, mode='r' ) as f:
+                tomldic = toml.load(f)
+                days = StockDays(datetime.date.fromisoformat(tomldic['stocker']['days']['update']['latest']))
+                self._smp = StockManegerParams(tomldic['stocker']['follows'], days)
 
     def _dump(self):
         cls = self.__class__
         filepath = cls.stock_filepath( cls.PARAMS_FILEPATH )
-        with open( filepath, mode='wb') as f:
-            pickle.dump( self._smp, f)
+
+        days = self.get_markeddays()
+        lday, nday = days.get_lastupdate(), days.get_nextupdate()
+        
+        tomldic = {'stocker': {
+                    'follows': self.get_follows(), 
+                    'days': {'update':{'latest': str(lday), 'next':str(nday)}}
+                }}
+
+        with open( filepath, mode='w') as f:
+            toml.dump( tomldic, f)
 
     def get_follows(self)-> List[int]: return self._smp.follows
     def get_markeddays(self)-> StockDays: return self._smp.marked_days
