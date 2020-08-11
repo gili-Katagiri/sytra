@@ -70,6 +70,9 @@ class SytraDay():
     def get_daystr(self)-> str:
         str_form = self.__class__.SFORM
         return self._day.strftime(str_form)
+    def get_nextstr(self)-> str:
+        str_form = self.__class__.SFORM
+        return self.next_trading().strftime(str_form)
     
     # day handling
     def next_trading(self)-> datetime.date:
