@@ -3,25 +3,27 @@ import toml
 from pathlib import Path
 import pandas as pd 
 
-from typing import List
+from typing import List, Tuple
 
 from .sytraday import SytraDay
 from .errors import StockerError, StockPathError
 
 class SytraPath():
     @classmethod
-    def sytra_path_init(cls, custom_path=None)-> str:
+    def sytra_path_init(cls, custom_path: str='')-> Path:
         # __file__ = ~/sytra/lib/stocker/sytrafiles.py
-        default_root = Path(__file__, '../../../stocks')
-        root_path = default_root if custom_path is None else Path(custom_path)
+        default_root = Path(__file__ + '/../../../stocks')
+        root_path = default_root if custom_path == '' else Path(custom_path)
+        root_path = root_path.resolve()
         print('Make stock directory at {0}.'.format(root_path))
         
         root_path.mkdir()
         (root_path/'log').mkdir()
         (root_path/'prepare').mkdir()
+        (root_path/'holidays').mkdir()
 
         # write in sytra/env
-        return str(root_path)
+        return root_path
 
     # rootdir from sytra/env
     def __init__( self, rootdir: str):
@@ -40,7 +42,7 @@ class SytraPath():
 
     # return concrete path
     # get directory and path
-    def get_stockpath( self, scode: int, target: str='stock.csv' )
+    def get_stockpath( self, scode: int, target: str='stock.csv' ):
         filepath = self._get_filepath(scode, target)
         dirpath = filepath.parent
         return dirpath, filepath
@@ -53,7 +55,6 @@ class SytraPath():
     def get_summarypath(self): return self._get_filepath('summary.csv')
     def get_sbasepath(self, noerror=True):
         return self._get_filepath('summary_base.csv')
-    def get_yholipath(self, year: int): return self.get_holidayspath / str(year)
     
     # candidate name to available name
     def get_available_path(self, fname: Path):
@@ -119,7 +120,7 @@ class SytraFiles(SytraPath):
         stocks = []
         for f in path.glob('*.csv'):
             # /path/to/stocks/prepare/9999.csv -> 9999
-            code = int( path.stem )
+            code = int( f.stem )
             dname, fname = super().get_stockpath(code,target='primitive.csv')
             try: dname.mkdir()
             except FileExistsError:
@@ -163,8 +164,8 @@ class SytraFiles(SytraPath):
 
         # create dataframe
         sbase = pd.DataFrame(
-                [ ['=RSS|'\'%d.T\"!%s' % (code, col) for col in JCOL] \
-                            for code in follows ],
+                [ ['=RSS|\'%d.T\'!%s' % (code, col) for col in JCOL]\
+                        for code in follows],
                 columns = RCOL
             )
 
@@ -187,34 +188,66 @@ class SytraFiles(SytraPath):
     def _get_summary(self)-> Tuple[str, pd.DataFrame]:
         summary_path = super().get_summarypath()
         # load
-        summary_day = linecache.getline( str(summary_path, 1).strip()
+        summary_day = linecache.getline( str(summary_path, 1).strip() )
         summary = pd.read_csv( summray_path, skiplow=1, header=0,
                 index_col='Code', encoding='cp932')
         summary.insert( 0, 'Date', summary_day )
 
         return summary_day, summary
 
-    def get_holidays_list(self, year: int) -> List[str]:
+    # file -> List
+    def _get_holidays_list(self, holipath: Path) -> List[str]:
         # load
-        path = super().get_yholipath(year)
-        hddf = pd.read_csv(path, header=None)
+        hddf = pd.read_csv(holipath, header=None)
         holidays = hddf.iloc[:,0].values.tolist()
 
         # Add as holiday prev 12/31 and next 01/01 to 01/03 certainly
         by, fy = str(year-1), str(year+1)
         holidays += [by+'-12-31',fy+'-01-01',fy+'-01-02',fy+'-01-03']
         return holidays
+    # files -> list ->  data
+    def _set_sytra_holidays(self)-> List[str]:
+        holiroot = super().get_holidayspath()
+        addlist = []
+        for f in holiroot.glob('*.csv'):
+            year = f.stem
+            holist = self._get_holidays_list(f)
+            StockDays.add_holidays_list( year, holist)
+            addlist.append(year)
+        return addlist
 
 class Stocker(SytraFiles):
+
+    @classmethod
+    def stocker_init(cls, rootdir: str='', daystr: str='', follows: List[int]=[]):
+        '''Sytra's init process.
+        You have to prepare files which include this and next year's holidays.
+        '''
+        # define doot directory
+        rootpath = super().sytra_path_init(rootdir)
+        # define sytra/env
+        envpath = Path(__file__+'/../../../env').resolve()
+        print('Make %s' % str(envpath))
+        with envpath.open(mode='w') as f: f.write(str(rootpath))
+
+        # call sytra_days_init and get year
+        daysdic = SytraDay.sytra_days_init(daystr)
+        tomldic = { 'stocker':{ 'follows': follows ,'days': daysdic } }
+        
+        with (rootpath/'sytraconf.toml').open(mode='w') as f:
+            toml.dump( tomldic, f)
+        
+
     def __init__( self, rootdir: str):
-        # SytraPath.__init___()
+        # SytraPath.__init__()
         super().__init__(rootdir)
         self._load()
 
     # save and load
     def _load(self):
         tomldic = super()._load_conf()
-        self._sest_bytoml(tomldic)
+        addlist = super()._set_sytra_holidays()
+        self._set_bytoml(tomldic)
     def dump(self):
         tomldic = self._to_tomldic()
         super()._dump_conf(tomldic)
@@ -226,7 +259,6 @@ class Stocker(SytraFiles):
 
         # protocol: add holidays before day init
         daystr = tomldic['stocker']['days']['latest']
-        SytraDay.set_holidays_dict( tomldic['stocker']['holidays'] )
         self._latest_update_day = SytraDay(daystr)
     def _to_tomldic(self)-> dict:
         return {'stocker':

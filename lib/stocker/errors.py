@@ -1,6 +1,6 @@
 class StockerError(Exception): pass
 
-class StockPathError(SytraError):
+class StockPathError(StockerError):
     def __init__(self, filepath, errorstr='No such file or directory.'):
         self.filepath = filepath
         self.errorstr = errorstr
@@ -8,5 +8,5 @@ class StockPathError(SytraError):
         super().__init__(filepath, filepath2, errorstr)
 
     def __str__(self):
-        s = '[SytraPathError] %s: \'%s\''. % (self.errorstr, str(self.filepath))
+        s = '[SytraPathError] %s: \'%s\'' % (self.errorstr, str(self.filepath))
         return s
