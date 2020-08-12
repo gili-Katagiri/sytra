@@ -42,8 +42,8 @@ class SytraPath():
 
     # return concrete path
     # get directory and path
-    def get_stockpath( self, scode: int, target: str='stock.csv' ):
-        filepath = self._get_filepath(scode, target)
+    def get_stockpath( self, scode: int, target: str='stock.csv', noerror=False):
+        filepath = self._get_filepath(scode, target, noerror=noerror)
         dirpath = filepath.parent
         return dirpath, filepath
     # get directory path
@@ -54,7 +54,7 @@ class SytraPath():
     def get_confpath(self): return self._get_filepath('sytraconf.toml')
     def get_summarypath(self): return self._get_filepath('summary.csv')
     def get_sbasepath(self, noerror=True):
-        return self._get_filepath('summary_base.csv')
+        return self._get_filepath('summary_base.csv', noerror=noerror)
     
     # candidate name to available name
     def get_available_path(self, fname: Path):
@@ -73,38 +73,6 @@ class SytraFiles(SytraPath):
     RECEPTION_COLUMNS: Tuple[str] = ('Code', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
     SBASE_COLUMNS: Tuple[str] = ('銘柄コード', '始値', '高値', '安値', '現在値', '出来高', '前日比', '残高貸株', '残高融資', '貸借倍率', '逆日歩')
 
-    # get file's bottom line
-    @classmethod 
-    def _filecount( cls, filepath: Path)-> int:
-        return sum( 1 for _ in filepath.open() )
-    @classmethod
-    def _filetail( cls, filepath: Path)-> List[str]:
-        size = cls._filecount(filepath)
-        line = linecache.get_line( str(filepath), size)
-        data = [ s.strip() for s in line.split(',') ]
-        return data
-    
-    # primitive dataframe -> available dataframe
-    @classmethod
-    def _compensation( cls, primitive: pd.DataFrame):
-        openid, closeid = cls.COLUMNS.index('Open'), cls.COLUMNS.index('Close')
-        # search index with Open=="-" and to List
-        idxs = list( primitive.query('Open=="-"').index)
-        if 0 in idxs: raise StockerError('StockValueError')
-        # set the day before close value
-        for idx in idxs:
-            val = primitive.iat[idx-1, closeid]
-            primitive.iloc[idx, openid: closeid+1] = [val for _ in range(4)]
-            
-        # Date to Timestamp and set index
-        primitive['Date'] = pd.to_datatime( primitive['Date'] )
-        primitive.set_index( 'Date', inplace=True)
-
-        # '-' appear Compare and Backword -> 0, all values treated as float
-        for col in cls.COLUMNS[1:]:
-            primitive[col] = primitive[col].str\
-                    .replace(',','').replace('-', '0').astype('float')
-
     # file <=> dict
     def _load_conf( self )-> dict:
         with super().get_confpath().open() as f:
@@ -121,7 +89,8 @@ class SytraFiles(SytraPath):
         for f in path.glob('*.csv'):
             # /path/to/stocks/prepare/9999.csv -> 9999
             code = int( f.stem )
-            dname, fname = super().get_stockpath(code,target='primitive.csv')
+            dname, fname = super().get_stockpath(code,target='primitive.csv',
+                    noerror=True)
             try: dname.mkdir()
             except FileExistsError:
                 print('WARNING: Passing {0}, directory already exists.'\
@@ -158,6 +127,46 @@ class SytraFiles(SytraPath):
         # rename stock.csv-> candname
         fname.rename(newname)
     
+    # file -> dataframe
+    def _get_primitive_df(self, stock_path: Path)-> pd.DataFrame:
+        columns = self.__class__.COLUMNS
+        # load csv
+        primitive_df = pd.read_csv( stock_path, header=0, dtype=str,
+                names=columns, encoding='UTF-8')
+        return primitive_df
+
+    # primitive dataframe -> available dataframe
+    @classmethod
+    def _compensation( cls, primitive: pd.DataFrame):
+        openid, closeid = cls.COLUMNS.index('Open'), cls.COLUMNS.index('Close')
+        # search index with Open=="-" and to List
+        idxs = list( primitive.query('Open=="-"').index)
+        if 0 in idxs: raise StockerError('StockValueError')
+        # set the day before close value
+        for idx in idxs:
+            val = primitive.iat[idx-1, closeid]
+            primitive.iloc[idx, openid: closeid+1] = [val for _ in range(4)]
+            
+        # Date to Timestamp and set index
+        primitive['Date'] = pd.to_datetime( primitive['Date'] )
+        primitive.set_index( 'Date', inplace=True)
+
+        # '-' appear Compare and Backword -> 0, all values treated as float
+        for col in cls.COLUMNS[1:]:
+            primitive[col] = primitive[col].str\
+                    .replace(',','').replace('-', '0').astype('float')
+
+    # get file's bottom line
+    @classmethod 
+    def _filecount( cls, filepath: Path)-> int:
+        return sum( 1 for _ in filepath.open() )
+    @classmethod
+    def _filetail( cls, filepath: Path)-> List[str]:
+        size = cls._filecount(filepath)
+        line = linecache.getline( str(filepath), size )
+        data = [ s.strip() for s in line.split(',') ]
+        return data
+    
     def _create_sbase(self, daystr: str, follows: Tuple[int])-> pd.DataFrame:
         RCOL = self.__class__.RECEPTION_COLUMNS
         JCOL = self.__class__.SBASE_COLUMNS
@@ -177,26 +186,18 @@ class SytraFiles(SytraPath):
         sbase.to_csv( sbase_path, mode='a', index=False, encoding='cp932')
         return sbase
 
-    # file -> dataframe
-    def _get_primitive_df(self, stock_path: int)-> pd.DataFrame:
-        columns = self.__class__.COLUMNS
-        # load csv
-        primitive_df = pd.read_csv( stock_path, header=0, dtype=str,
-                names=columns, encoding='UTF-8')
-        return primitive_df
     # file -> date string, dataframe
-    def _get_summary(self)-> Tuple[str, pd.DataFrame]:
-        summary_path = super().get_summarypath()
+    def _get_summary(self, summary_path: Path)-> Tuple[str, pd.DataFrame]:
         # load
-        summary_day = linecache.getline( str(summary_path, 1).strip() )
-        summary = pd.read_csv( summray_path, skiplow=1, header=0,
+        summary_day = linecache.getline( str(summary_path), 1) .strip()
+        summary = pd.read_csv( summary_path, skiprows=1, header=0,
                 index_col='Code', encoding='cp932')
         summary.insert( 0, 'Date', summary_day )
 
         return summary_day, summary
 
     # file -> List
-    def _get_holidays_list(self, holipath: Path) -> List[str]:
+    def _get_holidays_list(self, holipath: Path, year: int) -> List[str]:
         # load
         hddf = pd.read_csv(holipath, header=None)
         holidays = hddf.iloc[:,0].values.tolist()
@@ -211,8 +212,8 @@ class SytraFiles(SytraPath):
         addlist = []
         for f in holiroot.glob('*.csv'):
             year = f.stem
-            holist = self._get_holidays_list(f)
-            StockDays.add_holidays_list( year, holist)
+            holist = self._get_holidays_list(f, int(year))
+            SytraDay.add_holidays_list( year, holist)
             addlist.append(year)
         return addlist
 
@@ -227,7 +228,7 @@ class Stocker(SytraFiles):
         rootpath = super().sytra_path_init(rootdir)
         # define sytra/env
         envpath = Path(__file__+'/../../../env').resolve()
-        print('Make %s' % str(envpath))
+        print('Make env file at %s' % str(envpath))
         with envpath.open(mode='w') as f: f.write(str(rootpath))
 
         # call sytra_days_init and get year
@@ -281,9 +282,10 @@ class Stocker(SytraFiles):
         return stock_code in self.get_follows_tuple()
     # summary.csv must NOT exists when calls follow process
     def _check_follow_callable(self)-> bool:
-        try: self.get_summarypath()
+        try: super().get_summarypath()
         except StockPathError: return True
         return False
+
     # follow
     def _follow_stock(self, stock_code: int, **kwds):
         # check stock_code has not been followed
@@ -296,24 +298,25 @@ class Stocker(SytraFiles):
     # defollow
     def _defollow_stock(self, stock_code: int, **kwds):
         # check stock_code has been followed
-        if self._code_in_follows(stock_code): raise StockerError('StockKeyError')
+        if not self._code_in_follows(stock_code): raise StockerError('StockKeyError')
 
-        # 9999/stock.csv go to renames
+        # 9999/stock.csv go to 9999/renames
         renames = kwds['renames']
-        renames = str(stock_code)+'.csv' if renames == '' else renames
+        renames = 'rm'+str(stock_code)+'.csv' if renames == '' else renames
         super()._defollow_process(stock_code, renames)
 
         # remove stock_code by _follows_list
         self._follows_list.remove(stock_code)
 
+    # allocate
     def _allocate_stock(self, stock_code: int, **kwds):
         # get row data from kwds dictionary and to DataFrame
-        rowdata = pd.DataFrame( [kwds[stock_code]] )
+        rowdata = pd.DataFrame( [kwds[str(stock_code)]] )
         # path
         dname, fname = super().get_stockpath(stock_code)
 
         # rowdata.Close - rowdata.Compare = day before Close
-        daybefore = super().__class__._filetail(fname)
+        daybefore = self.__class__._filetail(fname)
         if not rowdata.iat[0,4] - rowdata.iat[0,6] == float(daybefore[4]):
             raise StockerError('StockValueError')
 
@@ -363,24 +366,34 @@ class Stocker(SytraFiles):
             print('Deploy the prepare directory.')
             codes += super()._follow_deploy()
         
-        self._iterate_process( proc, codes, options )
+        flist = self._iterate_process( proc, codes, options )
+        if flist: print('failuer: ', flist)
 
         if sort: self._follows_list.sort()
 
-        return failure
+        return flist
 
     def allocate_interface(self):
         # load
-        daystr, summary = super()._get_summary()
+        spath = super().get_summarypath()
+        daystr, summary = super()._get_summary(spath)
         codes = list(summary.index)
         # check 
         if daystr!=self.get_nextdaystr(): raise StockerError('StockDayError')
-        if tuple(codes)!=self.get_follows(): raise StockerError('StockKeyError')
+        if tuple(codes)!=self.get_follows_tuple():
+            raise StockerError('StockKeyError')
 
-        # summary_dic = { code1: pd.Series(Open, High, ...),
-        #                 code2: pd.Series(Open, High, ...), ...}
+        # dictionaly's key must be string!
+        # summary_dic = { "code1": pd.Series(Open, High, ...),
+        #                 "code2": pd.Series(Open, High, ...), ...}
+        summary.index = summary.index.astype(str)
         summary_dic = summary.T.to_dict(orient='series')
-        self._itarate_process(self._allocate_stock, codes, summary_dic)
+        self._iterate_process( self._allocate_stock, codes, summary_dic)
+        
+        logpath = super().get_logpath() / (daystr.replace('-',''))
+        spath.rename(logpath)
+
+        self._latest_update_day.day_advance()
         
     # create sbase.csv
     def create_sbase(self):

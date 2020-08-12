@@ -5,7 +5,7 @@ class StockPathError(StockerError):
         self.filepath = filepath
         self.errorstr = errorstr
 
-        super().__init__(filepath, filepath2, errorstr)
+        super().__init__(filepath, errorstr)
 
     def __str__(self):
         s = '[SytraPathError] %s: \'%s\'' % (self.errorstr, str(self.filepath))
