@@ -1,6 +1,7 @@
 import argparse
 from commands.follow import add_follow_parser
 from commands.allocate import add_allocate_parser
+from commands.init import add_init_parser
 
 from stocker import Stocker
 
@@ -26,10 +27,15 @@ def add_rootoption(rootparser, STOCK_ROOT):
 def add_subcommands(subparsers):
     add_allocate_parser(subparsers)
     add_follow_parser(subparsers)
+    add_init_parser(subparsers)
 
 def run(root_parser):
 
     namespace = root_parser.parse_args()
+    if namespace.subcom=='init':
+        Stocker.stocker_init(**vars(namespace))
+        return 
+
     stck = Stocker(namespace.rootpath)
 
     if namespace.debug:
@@ -54,6 +60,7 @@ def main(STOCK_ROOT):
 
     subparsers = root_parser.add_subparsers(
             title='AVAILABLE SUB-COMMANDS',
+            dest='subcom',
             metavar='COMMAND'
         )
     

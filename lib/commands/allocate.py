@@ -1,6 +1,3 @@
-import argparse
-import shutil
-
 def AllocateAction( stck, namespace):
 
     stck.allocate_interface()
