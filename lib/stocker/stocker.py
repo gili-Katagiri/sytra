@@ -338,7 +338,7 @@ class Stocker(SytraFiles):
 
 
     # interfaces
-    def follow_interface( self, codes: List[int], defollow: bool=False, deploy: bool=True, force: bool=False, sort: bool=True, renames: str=''):
+    def follow_interface( self, codes: List[int]=[], defollow: bool=False, deploy: bool=True, force: bool=False, sort: bool=True, renames: str='', **elsekwds):
         """
         The reason for preparing dictionary:options is to process functions _follow_stock and _defollow_stock as same arguments.
         Options included _follow_stock:
@@ -373,7 +373,7 @@ class Stocker(SytraFiles):
 
         return flist
 
-    def allocate_interface(self):
+    def allocate_interface(self, **kwds):
         # load
         spath = super().get_summarypath()
         daystr, summary = super()._get_summary(spath)
@@ -396,9 +396,11 @@ class Stocker(SytraFiles):
         self._latest_update_day.day_advance()
         
     # create sbase.csv
-    def create_sbase(self):
+    def create_sbase(self, **kwds):
         daystr = self.get_nextdaystr()
         follows = self.get_follows_tuple()
         
         sbase = super()._create_sbase(daystr, follows)
-        print(sbase)
+        print(daystr)
+        print(sbase.head(1).to_csv(None, index=False))
+        print('...')

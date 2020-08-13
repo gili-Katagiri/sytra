@@ -36,7 +36,7 @@ class TestStockerInit:
         
         # NO ERROR 
         # follow 4382, 6890 in prepare
-        stck.follow_interface([], force=True)
+        stck.follow_interface(codes=[], force=True)
         # allocate summary.csv
         stck.allocate_interface()
         # create and print sbase
@@ -48,9 +48,9 @@ class TestStockerInit:
         stck = Stocker(stocker_init_fixture[0])
 
         assert stck.get_follows_tuple() == (4382, 6890)
-        stck.follow_interface([4382], defollow=True)
+        stck.follow_interface(codes=[4382], defollow=True)
         assert stck.get_follows_tuple() == ( 6890, )
-        stck.follow_interface([6890], defollow=True, renames='testrename')
+        stck.follow_interface(codes=[6890], defollow=True, renames='testrename')
         assert stck.get_follows_tuple() == tuple()
 
         stck.dump()

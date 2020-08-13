@@ -7,6 +7,9 @@ from pathlib import Path
 lib = Path(__file__,'../../lib').resolve()
 sys.path.insert(0,str(lib))
 
+envpath = lib.parent / 'env'
+STOCK_ROOT = envpath.read_text().strip() if envpath.exists() else ''
+
 if __name__ == '__main__':
     from console import main
-    main()
+    main(STOCK_ROOT)
