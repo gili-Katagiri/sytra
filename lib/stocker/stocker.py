@@ -220,7 +220,7 @@ class SytraFiles(SytraPath):
 class Stocker(SytraFiles):
 
     @classmethod
-    def stocker_init(cls, rootdir: str='', daystr: str='', follows: List[int]=[]):
+    def stocker_init(cls, rootdir: str='', daystr: str='', follows: List[int]=[], **kwds):
         '''Sytra's init process.
         You have to prepare files which include this and next year's holidays.
         '''
