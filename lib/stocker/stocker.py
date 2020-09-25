@@ -6,10 +6,15 @@ import pandas as pd
 
 from typing import List, Tuple
 
-from .sytraday import SytraDay
-from .errors import StockerError, StockPathError
+from exceptions import SytraException
+from util.paths import *
+from util.sytraday import *
 
-class SytraPath():
+
+class StockerError(SytraException):
+    pass
+
+class StockerFilePath(SytraPath):
     @classmethod
     def sytra_path_init(cls, custom_path: str='')-> Path:
         # __file__ = ~/sytra/lib/stocker/sytrafiles.py
@@ -25,21 +30,6 @@ class SytraPath():
 
         # write in sytra/env
         return root_path
-
-    # rootdir from sytra/env
-    def __init__( self, rootdir: str):
-        self._root = Path( rootdir )
-        if not self._root.exists():
-            raise StockPathError(self._root)
-
-    # abstract path method
-    def _get_filepath( self, *args, noerror=False)-> Path:
-        path = Path( self._root )
-        for arg in args:
-            path = path / str(arg)
-        if not noerror and not path.exists():
-            raise StockPathError(path)
-        return path.resolve()
 
     # return concrete path
     # get directory and path
@@ -68,7 +58,7 @@ class SytraPath():
 
 
 # handling files
-class SytraFiles(SytraPath):
+class StockerFile(StockerFilePath):
 
     COLUMNS: Tuple[str] = ('Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
     RECEPTION_COLUMNS: Tuple[str] = ('Code', 'Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
@@ -157,6 +147,13 @@ class SytraFiles(SytraPath):
             primitive[col] = primitive[col].str\
                     .replace(',','').replace('-', '0').astype('float')
 
+    # stock.csv -> dataframe
+    def _stock_to_dataframe( self, stockpath: Path)-> pd.DataFrame:
+        stck_df = pd.read_csv(
+                stockpath, header=0, index_col='Date', parse_dates=True, dtype=float
+            )
+        return stck_df
+
     # get file's bottom line
     @classmethod 
     def _filecount( cls, filepath: Path)-> int:
@@ -218,7 +215,7 @@ class SytraFiles(SytraPath):
             addlist.append(year)
         return addlist
 
-class Stocker(SytraFiles):
+class Stocker(StockerFile):
 
     @classmethod
     def stocker_init(cls, rootdir: str='', daystr: str='', follows: List[int]=[], **kwds):
@@ -241,7 +238,7 @@ class Stocker(SytraFiles):
         
 
     def __init__( self, rootdir: str):
-        # SytraPath.__init__()
+        # Path.__init__()
         super().__init__(rootdir)
         self._load()
 
@@ -269,6 +266,14 @@ class Stocker(SytraFiles):
                         'days': self._latest_update_day.to_tomldic()
                     }
                 }
+
+    # stock data reader for Analyzer
+    def get_stock_data( self, stock_code: int):
+        # get path for stock.csv
+        dname, fname = self.get_stockpath(stock_code, target='stock.csv')
+        # read stock.csv into dataframe
+        stck_df = self._stock_to_dataframe(fname)
+        return dname, stck_df
     
     # return str, Not as it is
     def get_follows_tuple(self)-> Tuple[int]:
@@ -284,7 +289,7 @@ class Stocker(SytraFiles):
     # summary.csv must NOT exists when calls follow process
     def _check_follow_callable(self)-> bool:
         try: super().get_summarypath()
-        except StockPathError: return True
+        except SytraPathError: return True
         return False
 
     # follow

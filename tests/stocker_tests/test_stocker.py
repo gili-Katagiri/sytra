@@ -1,5 +1,5 @@
-from lib.stocker import Stocker
-from lib.stocker.errors import *
+from stocker import Stocker, StockerError
+from util.paths import SytraPathError
 
 import pytest
 
@@ -28,8 +28,8 @@ class TestStockerInit:
         assert stocker_init_fixture[1][3].exists()
         assert stck.get_summarypath().exists()
 
-        with pytest.raises(StockerError): stck.get_sbasepath(noerror=False)
-        with pytest.raises(StockerError): stck._get_filepath('log', '20200713')
+        with pytest.raises(SytraPathError): stck.get_sbasepath(noerror=False)
+        with pytest.raises(SytraPathError): stck._get_filepath('log', '20200713')
 
     def test_serial_proc(self, stocker_init_fixture):
         stck = Stocker(stocker_init_fixture[0])

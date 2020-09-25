@@ -1,7 +1,14 @@
 import datetime
 from typing import Tuple, List
 
-from .errors import StockerError
+from exceptions import SytraException
+
+class SytraDayError(SytraException):
+    def __init__(self, ermes: str = ''):
+        self.ermes = ermes
+    def __str__(self):
+        s = '[SytraDayError]' + self.ermes
+        return s
 
 class SytraDay():
     SFORM = '%Y-%m-%d'
@@ -25,7 +32,8 @@ class SytraDay():
     @classmethod
     def get_holidays_tuple( cls, year: int):
         keyyear = str(year)
-        if not keyyear in cls.HOLIDAYS: raise StockerError('StockDayError')
+        if not keyyear in cls.HOLIDAYS:
+            raise SytraDayError('Not Available Error: holidays/%s.csv.' % keyyear)
         return cls.HOLIDAYS[str(year)]
 
     @classmethod

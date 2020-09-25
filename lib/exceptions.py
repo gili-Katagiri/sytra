@@ -1,0 +1,4 @@
+
+class SytraException(Exception):
+
+    pass

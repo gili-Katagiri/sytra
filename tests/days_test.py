@@ -1,6 +1,5 @@
 import pytest
-from lib.stocker.sytraday import SytraDay
-from lib.stocker.errors import StockerError
+from util.sytraday import SytraDay, SytraDayError
 from datetime import date
 
 holi_2020 = ['2020-01-01', '2020-01-02', '2020-01-03', '2020-01-13', '2020-02-11', '2020-02-23', '2020-02-24', '2020-03-20', '2020-04-29', '2020-05-03', '2020-05-04', '2020-05-05', '2020-05-06', '2020-07-23', '2020-07-24', '2020-08-10', '2020-09-21', '2020-09-22', '2020-11-03', '2020-11-23', '2020-12-31'] 
@@ -17,14 +16,14 @@ def test_keys_holidays(holidays_fixture):
     # you can get tuple if added already
     canget = SytraDay.get_holidays_tuple('2020')
     #print(canget)
-    with pytest.raises(StockerError):
+    with pytest.raises(SytraDayError):
         SytraDay.get_holidays_tuple('2022')
 
 def test_init(holidays_fixture):
     # you can create if the class doesn't have holidays
     sday = SytraDay('2010-10-10')
     # but could not step
-    with pytest.raises(StockerError):
+    with pytest.raises(SytraDayError):
         sday.day_advance()
 
     # correct pattern

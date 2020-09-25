@@ -1,4 +1,4 @@
-from lib.stocker import Stocker
+from stocker import Stocker
 from pathlib import Path
 import shutil
 import pytest
