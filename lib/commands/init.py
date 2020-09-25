@@ -12,7 +12,7 @@ def add_init_parser(subparsers):
 
     parser_init.add_argument(
             '--latest-update', default='', type=str,
-            help='Set latest update day from string. Format: \'%Y-%m-%d\'.',
+            help='Set latest update day from string. Format: \'YYYY-mm-dd\'.',
             dest='daystr'
         )
 
