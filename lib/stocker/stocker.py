@@ -1,5 +1,6 @@
 import linecache
 import toml
+import math
 from pathlib import Path
 import pandas as pd 
 
@@ -317,7 +318,7 @@ class Stocker(SytraFiles):
 
         # rowdata.Close - rowdata.Compare = day before Close
         daybefore = self.__class__._filetail(fname)
-        if not rowdata.iat[0,4] - rowdata.iat[0,6] == float(daybefore[4]):
+        if not math.isclose(rowdata.iat[0,4] - rowdata.iat[0,6], float(daybefore[4])):
             raise StockerError('StockValueError')
 
         # write as csv
