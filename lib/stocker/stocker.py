@@ -147,13 +147,6 @@ class StockerFile(StockerFilePath):
             primitive[col] = primitive[col].str\
                     .replace(',','').replace('-', '0').astype('float')
 
-    # stock.csv -> dataframe
-    def _stock_to_dataframe( self, stockpath: Path)-> pd.DataFrame:
-        stck_df = pd.read_csv(
-                stockpath, header=0, index_col='Date', parse_dates=True, dtype=float
-            )
-        return stck_df
-
     # get file's bottom line
     @classmethod 
     def _filecount( cls, filepath: Path)-> int:
@@ -267,14 +260,6 @@ class Stocker(StockerFile):
                     }
                 }
 
-    # stock data reader for Analyzer
-    def get_stock_data( self, stock_code: int):
-        # get path for stock.csv
-        dname, fname = self.get_stockpath(stock_code, target='stock.csv')
-        # read stock.csv into dataframe
-        stck_df = self._stock_to_dataframe(fname)
-        return dname, stck_df
-    
     # return str, Not as it is
     def get_follows_tuple(self)-> Tuple[int]:
         return tuple(self._follows_list)
