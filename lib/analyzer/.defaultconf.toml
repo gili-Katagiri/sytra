@@ -1,0 +1,6 @@
+[pafclose]
+validity = true
+aptriger = 4
+[pafclose.planting]
+datafiles = [ 'pafc_P1', 'pafc_P2']
+p-planting =[ [ 30, 3], [ 5, 3] ]
