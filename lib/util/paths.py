@@ -25,9 +25,8 @@ class SytraPath():
     def _get_filepath( self, *args, noerror=False)-> Path:
         path = self._root
         for arg in args: path = path / str(arg)
-        try:
-            path = path.resolve(strict=(not noerror))
-        except FileNotFoundError:
+        path = path.resolve()
+        if not (noerror or path.exists()):
             raise SytraPathError(path)
 
         return path
