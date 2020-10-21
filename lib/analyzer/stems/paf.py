@@ -1,14 +1,14 @@
 from util import mthtools as mth
-from .msg import StemBase, MultiStemGenerator
+from .msg import PStemBase, PStemGenerator
 
-class PaFAbstract(StemBase):
+class PaFAbstract(PStemBase):
     
     columns = ( 'pafabs', )
     main_column = 'pafabs'
 
-    def __init__(self, filepath, point, reverse):
-        super().__init__(filepath)
-        self._point, self._reverse = point, reverse
+    # interface
+    def _params_init(self, params):
+        self._point, self._reverse = params
         self._abspath = self.get_main_data().tolist()
 
     def get_direction(self):
@@ -65,7 +65,15 @@ class PaFClose(PaFAbstract):
     columns = ( 'pafc', )
     main_column = 'pafc'
 
-    def update(self, rowname, close):
+    def _row_update(self, rowx, close):
+        idx = self.__class__.columns
+        val, wflag = self.update(close)
+        # add index and value
+        for i, v in zip(idx, val): rowx[i]=v
+        return wflag
+
+
+    def update(self, close):
 
         # current point 
         val = int(close) // self._point
@@ -73,7 +81,7 @@ class PaFClose(PaFAbstract):
         # initial
         if len(self._abspath)<1:
             self._abspath.append(val)
-            return super().update(rowname, val)
+            return (val,), 1
         # last point and direction
         last = self._abspath[-1]
         dsign = self.get_direction()
@@ -81,23 +89,24 @@ class PaFClose(PaFAbstract):
         # movement
         mov = val - last
         # update flagments
-        wflag = True
-        rflag = False
+        wflag = 0
 
         # continue growth
-        if mov*dsign > 0: self._abspath[-1] = val
+        if mov*dsign > 0:
+            self._abspath[-1] = val
+            wflag = 2 #override
         # resistance and exceed
         elif abs(mov) >= self._reverse:
-            rflag = True
             self._abspath.append(val)
+            wflag = 1 # add
         # no change
-        else: wflag = False
+        else: wflag = 0
         
         # update elements
-        return super().update(rowname, val, write=wflag, drop=(not rflag))
+        return (val,), wflag
 
 
-class PaFClosePlanter(MultiStemGenerator):
+class PaFClosePlanter(PStemGenerator):
     PlantStem = PaFClose
     classid = 'pafclose'
     udflag = 0b100

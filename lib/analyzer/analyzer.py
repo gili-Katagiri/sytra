@@ -72,61 +72,49 @@ class Analyzer(AnalyzerFile):
     def __init__(self, rootdir: Path):
         # define directory structure
         super().__init__(rootdir)
-        # load analy.conf
-        self._msg_classid = []
-        self._msg_config = []
-        # fill these
-        self._load()
 
-        self._msg_list = self.plant()
+        # read stock.csv
+        self._stock_data = super().get_stock_data()
+        # config load
+        tomldic = super()._load_conf()
+        # keys: dic_keys include classid. ex) ['buffer', 'pafclose', ... ]
+        self._config, self._useless = dict(), dict()
+        for msgkey, stemconf in tomldic.items():
+            if stemconf['validity']:
+                self._config[msgkey] = stemconf
+            else:
+                self._useless[msgkey] = stemconf
 
-    # rowdata from summary.csv 
-    def daily_update(self, rowname, rowdata):
-        
-        for msg in self._msg_list:
-            msg.stems_update(rowname, rowdata)
-        
+        # planting Multi-Stem Generator
+        self._msglist = self.planting()
 
-    def plant(self):
+
+    def planting(self):
         # Multi-Stem Generator instance list
         msglst = []
         # make instances from MSG
-        for idx, classid in enumerate(self._msg_classid):
+        for classid, conf in self._config.items():
             # idetify the class, extends Multiple-Stem Genrator
             MSG = self.__class__.MSG_dict[classid]
             # stem root directory
             msg_path = self._get_filepath(classid)
-
-            # stem data file
-            conf = self._msg_config[idx]['planting']
-            datafiles = conf['datafiles']
-            p_planting = conf.get('p-planting', [])
             # make instance
-            msg = MSG(msg_path, datafiles, *p_planting)
-
+            msg = MSG(msg_path, conf['planting'])
             # append
             msglst.append(msg)
+
         return msglst
+
+    # rowdata from summary.csv 
+    def daily_update(self, rowname, rowdata):
+        # rowname-> dmode?: dmode made in Stocker
+        dmode = 0b111
+        for msg, conf in zip(self._msglist, self._config.values()):
+            # branching 
+            bglist = msg.branching(dmode, conf['branching'])
+            # update stems main data
+            msg.stems_update(rowname, rowdata, bglist)
+            #msg.stems_update(rowname, rowdata, [])
+
+
         
-
-    def _load(self):
-        self._stock_data = super().get_stock_data()
-        tomldic = super()._load_conf()
-        self._set_by_dict(tomldic)
-
-    def dump(self):
-        tomldic = self._to_tomldic()
-        super()._dump_conf(tomldic)
-
-    def _set_by_dict(self, tomldic):
-        # keys: dic_keys include classid. ex) ['buffer', 'pafclose', ... ]
-        for msgkey in tomldic.keys():
-            if tomldic[msgkey]['validity']:
-                # add classid which class should be updated
-                self._msg_classid.append(msgkey)
-                self._msg_config.append(tomldic[msgkey])
-
-    def _to_tomldic(self):
-        pass
-
-
