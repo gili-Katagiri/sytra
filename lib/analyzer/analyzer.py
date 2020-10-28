@@ -7,6 +7,7 @@ from exceptions import SytraException
 from util.paths import SytraPath, SytraPathError
 from util.sytraday import SytraDay
 
+from .stems.bufstem import BufStemPlanter
 from .stems.paf import PaFClosePlanter
 
 class AnalyzerError(SytraException):
@@ -14,14 +15,13 @@ class AnalyzerError(SytraException):
 
 class AnalyzerFilePath(SytraPath):
     
-    '''
-    # override to raise AnalyzerError
-    def _get_filepath(self, *args, noerror=False):
-        try: filepath = super()._get_filepath(*args, noerror=noerror)
-        except SytraException(): raise AnalyzerError()
+        
+    # unique file path
+    # lib/analyzer/.defaultconf.toml
+    @classmethod
+    def _hideget_default_confpath(self):
+        return Path(__file__ + '/../.defaultconf.toml').resolve(strict=True)
 
-        return filepath
-    '''
 
     # provide 9999/* paths
     def get_stockpath(self): return self._get_filepath('stock.csv')
@@ -29,13 +29,23 @@ class AnalyzerFilePath(SytraPath):
         return self._get_filepath('analyconf.toml', noerror=noerror)
 
 
-    # unique file path
-    # lib/analyzer/.defaultconf.toml
-    def _hideget_default_confpath(self):
-        return Path(__file__ + '/../.defaultconf.toml').resolve(strict=True)
 
 class AnalyzerFile(AnalyzerFilePath):
     
+    @classmethod
+    def _analy_path_init(cls, rootpath: Path):
+        # prepare analyconf.toml
+        defconf = cls._hideget_default_confpath().read_text()
+        (rootpath/'analyconf.toml').write_text(defconf)
+
+        # Buffering directorys
+        bufpath = rootpath/'buffer'
+        bufpath.mkdir()
+        (bufpath/'daily.csv').symlink_to(rootpath/'stock.csv')
+        (bufpath/'weekly.csv').touch()
+        (bufpath/'monthly.csv').touch()
+
+
     # read 9999/stock.csv
     def get_stock_data(self)-> pd.DataFrame:
 
@@ -51,21 +61,19 @@ class AnalyzerFile(AnalyzerFilePath):
         try: tomlpath = self.get_confpath()
         # case: config file is not exists
         except SytraPathError:
-            print('-----Start-up Analyzer for the first time-----')
-            tomlpath = self._hideget_default_confpath()
+            #print('-----Start-up Analyzer for the first time-----')
+            raise SytraPathError
+            #tomlpath = self._hideget_default_confpath()
 
         # toml load
         with tomlpath.open() as f: tomldic = toml.load(f)
         return tomldic
 
-    def _dump_conf(self, tomldic):
-        with super().get_confpath(noerror=True).open(mode='w') as f:
-            toml.dump(tomldic,f)
-
 
 class Analyzer(AnalyzerFile):
 
     MSG_dict: dict = {
+        'buffer' : BufStemPlanter, 
         'pafclose': PaFClosePlanter
     }
 
@@ -99,21 +107,21 @@ class Analyzer(AnalyzerFile):
             # stem root directory
             msg_path = self._get_filepath(classid)
             # make instance
-            msg = MSG(msg_path, conf['planting'])
+            msg = MSG(msg_path, conf['planting'], conf['branching'])
             # append
             msglst.append(msg)
 
         return msglst
 
     # rowdata from summary.csv 
-    def daily_update(self, rowname, rowdata):
+    def daily_update(self, rowname, dmode, rowdata):
         # rowname-> dmode?: dmode made in Stocker
-        dmode = 0b111
+        #dmode = 0b111
         for msg, conf in zip(self._msglist, self._config.values()):
             # branching 
-            bglist = msg.branching(dmode, conf['branching'])
+            #bglist = msg.branching(dmode, conf['branching'])
             # update stems main data
-            msg.stems_update(rowname, rowdata, bglist)
+            msg.stems_update(rowname, dmode, rowdata)
             #msg.stems_update(rowname, rowdata, [])
 
 

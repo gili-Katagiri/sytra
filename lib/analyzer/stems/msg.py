@@ -24,20 +24,23 @@ class MultiStemGenerator():
         'SMA': SMAGenerator
     }
 
-    def __init__(self, msgpath, datafiles, tpargs):
+    def __init__(self, msgpath, datafiles, tpargs, branchconf):
         # create 
         self._stemlist = []
         Stem = self.__class__.PlantStem
+        # call Branching on time
+        self._branch_initialized = False
+        self._branchconf = branchconf
         # make stems
         for fname, param in zip(datafiles, tpargs):
-            stem = Stem( msgpath/fname, param)
+            stem = Stem(self, msgpath/fname, param)
             self._stemlist.append(stem)
 
     # make branch tree
-    def _enum_branch(self, dmode, branchconf):
+    def _enum_branch(self):
         # use List to express tree
         bglist = []
-        for bid, bconf in branchconf.items():
+        for bid, bconf in self._branchconf.items():
             # get BranchGenerator CLASS
             BG = self.__class__.Branch_dict[bid]
             # make BranchTree instance
@@ -46,16 +49,20 @@ class MultiStemGenerator():
             bglist.append(bgins)
         return  bglist
 
-    def branching(self, dmode, branchconf):
-        if self.__class__.udflag&dmode==0 : return []
+    def branching(self):
+        # it already set, return it
+        if self._branch_initialized: return self._branchlist
+        
         # enumerate branches
-        bglist = self._enum_branch(dmode, branchconf)
+        bglist = self._enum_branch()
         # if depsolve: solve the branch dependants ??
         
+        self._branch_initialized=True
+        self._branchlist = bglist
         return bglist
 
 
-    def stems_update(self, rowname, rowdata, bglist):
+    def stems_update(self, rowname, dmode, rowdata):
         # get list
         desired_lst = list(self.__class__.get_dependent())
         # pd.Series.loc[ arg ]: available arg is list or str
@@ -64,11 +71,8 @@ class MultiStemGenerator():
 
         for stem in self._stemlist:
             # rowx: daily row data, wflag modification flag expressed as int
-            rowx, wflag = stem.update_maindata(rowname, *provide_val)
-            if wflag==0: return
-            stem.apply(bglist, rowx)
-            stem.update_X(rowx, wflag)
-
+            stem._row_update(rowname, dmode, *provide_val)
+            #stem.apply(rowname, bglist)
 
     """
     def depend_solve(self, branchenume, bfilter):
@@ -96,38 +100,24 @@ class MultiStemGenerator():
     but T-Branching process need to switch according to variable 'dmode'.
 '''
 
-class TStemGenerator(MultiStemGenerator): 
-    # T-Branching desire stems have timeid: ( t1, t2, ...)
-    def __init__(self, msgpath, plantconf):
-        # make Stems and append
-        datafiles = platnconf['datafiles']
-        t_planting = plantconf['t-planting']
-        super().__init__(msgpath, datafiles, t_planting)
-    '''
-    def branching(self, dmode, branchconf):
-        # get BranchGeneratorTree as List
-        bglist = super().branching(dmode, branchconf)
-        for stem in self._stemlist:
-            # T-Stem's udflags may be different every instance
-            if stem._tmode & dmode:
-                for bg in bglist: stem.apply(bg)
-    '''
 
 class PStemGenerator(MultiStemGenerator): 
     # args example PaF: ( (p1, r1), (p2, r2), ... )
-    def __init__(self, msgpath, plantconf):
+    def __init__(self, msgpath, plantconf, branchconf):
         datafiles = plantconf['datafiles']
         p_planting = plantconf['p-planting']
-        super().__init__(msgpath, datafiles, p_planting)
-    '''
-    def branching(self, dmode, branchconf):
-        # get BranchGeneratorTree as List
-        bglist = super().branching(dmode, branchconf)
-        # all of P-Stem's udflags is the same value
-        if self.__class__.udflag&dmode==0: return
-        for stem in self._stemlist:
-            for bg in bglist: stem.apply(bg)
-    '''
+        super().__init__(msgpath, datafiles, p_planting, branchconf)
+
+
+'''
+class TStemGenerator(MultiStemGenerator): 
+    # T-Branching desire stems have timeid: ( t1, t2, ...)
+    def __init__(self, msgpath, plantconf, branchconf):
+        # make Stems and append
+        datafiles = platnconf['datafiles']
+        t_planting = plantconf['t-planting']
+        super().__init__(msgpath, datafiles, t_planting, branchconf)
+'''
 
 class StemBase():
 
@@ -136,51 +126,43 @@ class StemBase():
     main_column: str
 
     # read data
-    def __init__(self, filepath):
+    def __init__(self, parent, filepath, params):
+        self._parent_generator = parent
         self._filepath = filepath
         # read datafile, dtype?
         self._X_df = pd.read_csv(
             filepath, header=0, index_col='Date', parse_dates=True
         )
+        self._params_init(params)
 
-    def update_maindata(self, rowname, *desirevalues):
-        rowx = pd.Series(name=rowname)
-        wflag = self._row_update(rowx, *desirevalues)
-        return rowx, wflag
-    
-    def update_X(self, rowx, writeflag):
-        # writeflag--- 0: Nochange, 1: Add, 2: Overwrite
-        if writeflag < 1: return
-        elif writeflag > 1:
-            self._X_df.drop(index=self._X_df.index[-1], inplace=True)
-        self._X_df.loc[rowx.name] = rowx
+    # interface
+    def _params_init(self, params): pass
+    def _row_update(self, rowname, dmode, *rootval): pass
 
+    # utility
+    def _row_create(self, rowname, values=None, dtype='float64'):
+        # prepare Series
+        rowx = pd.Series(data=values, index=self.__class__.columns,
+                name=rowname, dtype=dtype)
+        return rowx
 
-    def apply(self, bglist, rowx):
-        # prepare desired data 
-        mvalues = self.get_main_data()
-        for bg in bglist:
-            bg.apply(mvalues, rowx)
-            
 
     def axes_plot(self, ax, pltsize=30): pass
 
+    # utility
     def get_main_data(self):
         return self._X_df.loc[:, self.__class__.main_column].values
-    def get_dataframe(self, colname):
-        return self._X_df.loc[:, self._X_df.columns.str.startswith('SMA')]
-
-class TStemBase(StemBase):
-    def __init__(self, filepath, tmode):
-        super().__init__(filepath)
-        self._tmode = tmode
-
-
-class PStemBase(StemBase):
-    
-    def __init__(self, filepath, params):
-        super().__init__(filepath)
-        self._params_init(params)
-    #interface
-    def _params_init(self, params): pass
+    def _X_update(self, rowx): self._X_df.loc[rowx.name]=rowx
+    def _X_drop(self): self._X_df.drop(self._X_df.index[-1], inplace=True)
+    def _branching(self, rowname):
+        # get branch list
+        blist = self._parent_generator.branching()
+        # get main values for update branch
+        mainvalues = self.get_main_data()
+        for branch in blist:
+            # brrow is pd.Series
+            brrow = branch.apply(mainvalues)
+            idxs = brrow.index.tolist()
+            # _X_df's latest row is updated, but NOT save ??
+            self._X_df.loc[rowname, idxs] = brrow
 

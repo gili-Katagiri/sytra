@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 class SMAGenerator():
@@ -15,7 +16,8 @@ class SMAGenerator():
     def __init__(self, params):
         self._pbranch = params
 
-    def apply(self, mainvalues, rowx):
+    def apply(self, mainvalues):
+        rowx = pd.Series(name=self.__class__.colname)
         # define row's name
         idxs = self.__class__._naming(self._pbranch)
         vals = []
@@ -23,8 +25,8 @@ class SMAGenerator():
             # calcuration values
             val = self._sma(p, mainvalues)
             vals.append(val)
-        for idx, val in zip( idxs, vals):
-            rowx[idx] = val
+        for idx, val in zip( idxs, vals): rowx.loc[idx] = val
+        return rowx
             
 
     def _sma(self, length, values):

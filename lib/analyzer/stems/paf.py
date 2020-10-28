@@ -1,20 +1,41 @@
 from util import mthtools as mth
-from .msg import PStemBase, PStemGenerator
+from .msg import StemBase, PStemGenerator
 
-class PaFAbstract(PStemBase):
+class PaFAbstract(StemBase):
     
     columns = ( 'pafabs', )
     main_column = 'pafabs'
 
-    # interface
+    # override interface
     def _params_init(self, params):
+        # params = [ point, reverse ]
         self._point, self._reverse = params
         self._abspath = self.get_main_data().tolist()
+    # override interface
+    def _row_update(self, rowname, dmode, *rootval):
+        # start base branching
+        rowx, spflag = self._row_create(rowname, *rootval)
+        # spflag is True: branching without rowx
+        if spflag: super()._branching(self._X_df.index[-1])
+        # spflag is False: rowx overwrite latest update
+        else: self._X_drop()
+        self._X_update(rowx)
 
+    # overload utilty
+    def _row_create(self, rowname, *rootval):
+        values, spflag = self._update_(*rootval)
+        # values: tuple -> pd.Series (index=__class__.columns)
+        rowx = super()._row_create(rowname, values=values, dtype='int64')
+        # rowx and specific flag
+        return rowx, spflag
+
+    # interface
+    def _update_(self, *rootval): pass
+
+    # utility
     def get_direction(self):
         if len(self._abspath) < 2: return 0
         else: return mth.sign(self._abspath[-1] - self._abspath[-2])
-
     # abspath to relpath
     def get_relpath(self, maxsize=30):
 
@@ -34,7 +55,7 @@ class PaFAbstract(PStemBase):
         
         return intercept, relpath
 
-    # interface
+    # override interface
     def axes_plot(self, ax, maxsize=30):
         inter, relpath = self.get_relpath(maxsize=maxsize)
         ax.scatter(0, inter, color='black', marker='o')
@@ -65,15 +86,7 @@ class PaFClose(PaFAbstract):
     columns = ( 'pafc', )
     main_column = 'pafc'
 
-    def _row_update(self, rowx, close):
-        idx = self.__class__.columns
-        val, wflag = self.update(close)
-        # add index and value
-        for i, v in zip(idx, val): rowx[i]=v
-        return wflag
-
-
-    def update(self, close):
+    def _update_(self, close):
 
         # current point 
         val = int(close) // self._point
@@ -81,7 +94,7 @@ class PaFClose(PaFAbstract):
         # initial
         if len(self._abspath)<1:
             self._abspath.append(val)
-            return (val,), 1
+            return (val,), True
         # last point and direction
         last = self._abspath[-1]
         dsign = self.get_direction()
@@ -89,27 +102,26 @@ class PaFClose(PaFAbstract):
         # movement
         mov = val - last
         # update flagments
-        wflag = 0
+        reflag = False
 
         # continue growth
         if mov*dsign > 0:
             self._abspath[-1] = val
-            wflag = 2 #override
+            reflag = False #override
         # resistance and exceed
         elif abs(mov) >= self._reverse:
             self._abspath.append(val)
-            wflag = 1 # add
+            reflag = True # add
         # no change
-        else: wflag = 0
+        else: reflag = False #pass
         
         # update elements
-        return (val,), wflag
+        return (self._abspath[-1],), reflag
 
 
 class PaFClosePlanter(PStemGenerator):
     PlantStem = PaFClose
     classid = 'pafclose'
-    udflag = 0b100
     depend_rootcol = ('Close', )
     
 

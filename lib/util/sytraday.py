@@ -48,6 +48,17 @@ class SytraDay():
             cand = cand+datetime.timedelta(days=step)
 
         return cand
+    
+    # decide day mode as int
+    @classmethod
+    def datemode(cls, cdate, ndate, defaultmode=0b100):
+        dmode = defaultmode
+        # different month
+        if cdate.month!=ndate.month: dmode+=0b001
+        # different week
+        if (ndate-cdate).days>6 or cdate.weekday()>ndate.weekday(): dmode+=0b010
+        
+        return dmode
 
     def __init__( self, day: str):
         self._set_fromstr(day, check=False)
@@ -69,6 +80,9 @@ class SytraDay():
     def get_nextstr(self)-> str:
         str_form = self.__class__.SFORM
         return self.next_trading().strftime(str_form)
+    def get_dmode(self)-> int:
+        ndate = self.next_trading()
+        return self.__class__.datemode(self._day, ndate)
     
     # day handling
     def next_trading(self)-> datetime.date:

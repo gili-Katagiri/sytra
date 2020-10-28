@@ -1,6 +1,19 @@
+[buffer]
+validity = true
+
+[buffer.planting]
+datafiles = [ 'daily.csv', 'weekly.csv', 'monthly.csv' ]
+p-planting = [ [ 4, 1], [ 2, 1], [ 1, 1] ]
+
+[buffer.branching]
+[buffer.branching.SMA]
+branch = [5, 8, 13, 21]
+
+
+
+
 [pafclose]
 validity = true
-aptriger = 4
 
 [pafclose.planting]
 datafiles = [ 'pafc_P1', 'pafc_P2']
