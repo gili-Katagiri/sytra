@@ -9,6 +9,7 @@ from typing import List, Tuple
 from exceptions import SytraException
 from util.paths import *
 from util.sytraday import *
+from analyzer import Analyzer
 
 
 class StockerError(SytraException):
@@ -91,24 +92,6 @@ class StockerFile(StockerFilePath):
             stocks.append(code)
         return stocks
     
-    # file->dataframe->dataframe->file
-    def _follow_process(self, stock_code: int, latest_str: str):
-        # get path
-        dname, fname = super().get_stockpath(stock_code, target='primitive.csv')
-        # read
-        primitive_df = self._get_primitive_df(fname)
-
-        # primitive has latest values
-        datestr = primitive_df.iloc[-1]['Date'].replace('/','-')
-        if datestr!=latest_str: raise StockerError('StockDayError')
-
-        # compensation and to file
-        self.__class__._compensation( primitive_df )
-        primitive_df.to_csv( dname/'stock.csv' )
-        
-        # hide primitive.csv
-        fname.replace(dname / '.primitive.csv')
-
     def _defollow_process(self, stock_code: int, candname: str):
         # get path
         dname, fname = super().get_stockpath(stock_code, target='stock.csv')
@@ -118,35 +101,6 @@ class StockerFile(StockerFilePath):
         # rename stock.csv-> candname
         fname.rename(newname)
     
-    # file -> dataframe
-    def _get_primitive_df(self, stock_path: Path)-> pd.DataFrame:
-        columns = self.__class__.COLUMNS
-        # load csv
-        primitive_df = pd.read_csv( stock_path, header=0, dtype=str,
-                names=columns, encoding='UTF-8')
-        return primitive_df
-
-    # primitive dataframe -> available dataframe
-    @classmethod
-    def _compensation( cls, primitive: pd.DataFrame):
-        openid, closeid = cls.COLUMNS.index('Open'), cls.COLUMNS.index('Close')
-        # search index with Open=="-" and to List
-        idxs = list( primitive.query('Open=="-"').index)
-        if 0 in idxs: raise StockerError('StockValueError')
-        # set the day before close value
-        for idx in idxs:
-            val = primitive.iat[idx-1, closeid]
-            primitive.iloc[idx, openid: closeid+1] = [val for _ in range(4)]
-            
-        # Date to Timestamp and set index
-        primitive['Date'] = pd.to_datetime( primitive['Date'] )
-        primitive.set_index( 'Date', inplace=True)
-
-        # '-' appear Compare and Backword -> 0, all values treated as float
-        for col in cls.COLUMNS[1:]:
-            primitive[col] = primitive[col].str\
-                    .replace(',','').replace('-', '0').astype('float')
-
     # get file's bottom line
     @classmethod 
     def _filecount( cls, filepath: Path)-> int:
@@ -281,11 +235,12 @@ class Stocker(StockerFile):
     def _follow_stock(self, stock_code: int, **kwds):
         # check stock_code has not been followed
         if self._code_in_follows(stock_code): raise StockerError('StockKeyError')
-
-        super()._follow_process(stock_code, self.get_lateststr())
+        dname, fname = self.get_stockpath(stock_code, target='primitive.csv')
+        Analyzer.analyzer_init(dname, self.get_lateststr())
         
         # add stock_code to _follows_list
         self._follows_list.append( stock_code )
+
     # defollow
     def _defollow_stock(self, stock_code: int, **kwds):
         # check stock_code has been followed
