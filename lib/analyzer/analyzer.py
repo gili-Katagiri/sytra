@@ -25,8 +25,6 @@ class AnalyzerFilePath(SytraPath):
     # provide 9999/* paths
     def get_stockpath(self, noerror=False):
         return self._get_filepath('stock.csv')
-    def get_primitivepath(self, noerror=False):
-        return self._get_filepath('primitive.csv')
     def get_confpath(self, noerror=False):
         return self._get_filepath('analyconf.toml', noerror=noerror)
 
@@ -35,8 +33,39 @@ class AnalyzerFilePath(SytraPath):
 class AnalyzerFile(AnalyzerFilePath):
     ROOT_COLUMNS = ('Date', 'Open', 'High', 'Low', 'Close', 'Volume', 
                     'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
+    # read 9999/primitive.csv
     @classmethod
-    def _analy_file_init(cls, rootpath: Path, ltdate: str):
+    def get_primitivedata(cls, prpath):
+        cols = cls.ROOT_COLUMNS
+        prim_df = pd.read_csv(
+            prpath, header=0, dtype=str, names=cols, encoding='UTF-8'
+        )
+        return prim_df
+    
+    # read 9999/stock.csv
+    def get_stockdata(self)-> pd.DataFrame:
+        stock_path = self.get_stockpath()
+        stock_df = pd.read_csv(
+            stock_path, header=0, index_col='Date', parse_dates=True, dtype=float
+        )
+        return stock_df
+
+    def _load_conf(self):
+        # readpath
+        tomlpath = self.get_confpath()
+        # toml load
+        with tomlpath.open() as f: tomldic = toml.load(f)
+        return tomldic
+
+class AnalyzerBase(AnalyzerFile):
+
+    MSG_dict: dict = {
+        'buffer' : BufStemPlanter, 
+        'pafclose': PaFClosePlanter
+    }
+
+    @classmethod
+    def _analy_init(cls, rootpath: Path, ltdate: str):
         # primitive.csv -> .primitive.csv, stock.csv
         cls.follow_process(rootpath, ltdate)
 
@@ -48,94 +77,50 @@ class AnalyzerFile(AnalyzerFilePath):
     def follow_process(cls, rootpath: Path, ltdate: str):
         # read primitive and hide file
         prpath = rootpath/'primitive.csv'
-        prdf = cls.get_primitivedata(prpath)
+        prdf = super().get_primitivedata(prpath)
         # date check ltdate: latest trade date string
         # primitive's date: YYYY/mm/dd
         datestr = prdf.iat[-1, 0].replace('/', '-')
         if datestr!=ltdate: raise AnalyzerError('irregal date error.')
         # drop missing row and values, set index, dtype='float'
-        cls.compensate(prdf)
+        stckdf = cls.compensate(prdf)
         # save as 9999/stocks.csv
-        prdf.to_csv( rootpath/'stock.csv' )
+        stckdf.to_csv( rootpath/'stock.csv' )
         prpath.rename(rootpath/'.primitive.csv')
 
-    # read 9999/primitive.csv
-    @classmethod
-    def get_primitivedata(cls, prpath):
-        cols = cls.ROOT_COLUMNS
-        prim_df = pd.read_csv(
-            prpath, header=0, dtype=str, names=cols, encoding='UTF-8'
-        )
-        return prim_df
-    
     @classmethod
     def compensate(cls, prdf):
+        # return copy, default deep=True
+        stckdf = prdf.copy()
         # Open, High, Low, Close, ...
         cols = cls.ROOT_COLUMNS
         openid, closeid = cols.index('Open'), cols.index('Close')
         # search index with Open=='-', into list
-        idxs = list( prdf.query('Open=="-"').index )
+        idxs = list( stckdf.query('Open=="-"').index )
         if 0 in idxs: raise AnalyzerError('NaN at df.loc[0]')
         # set the day before close value
         for idx in idxs:
-            val = prdf.iat[idx-1, closeid]
+            val = stckdf.iat[idx-1, closeid]
             # fill values from Open to Close with Close value at the day before
-            prdf.iloc[idx, openid: closeid+1] = [ val for _ in range(4) ]
+            stckdf.iloc[idx, openid: closeid+1] = [ val for _ in range(4) ]
         
         # date to timestamp and set index
-        prdf['Date'] = pd.to_datetime( prdf['Date'] )
-        prdf.set_index( 'Date', inplace=True )
+        stckdf['Date'] = pd.to_datetime( stckdf['Date'] )
+        stckdf.set_index( 'Date', inplace=True )
 
         # values treated as float
         for col in cols[1:]:
-            prdf[col] = \
-                prdf[col].str.replace(',','').replace('-', '0').astype('float')
+            stckdf[col] = \
+                stckdf[col].str.replace(',','').replace('-', '0').astype('float')
+        return stckdf
 
 
-    # read 9999/stock.csv
-    def get_stockdata(self)-> pd.DataFrame:
-
-        stock_path = self.get_stockpath()
-        stock_df = pd.read_csv(
-            stock_path, header=0, index_col='Date', parse_dates=True, dtype=float
-        )
-
-        return stock_df
-
-    def _load_conf(self):
-        # readpath
-        try: tomlpath = self.get_confpath()
-        # case: config file is not exists
-        except SytraPathError:
-            #print('-----Start-up Analyzer for the first time-----')
-            raise SytraPathError
-            #tomlpath = self._hideget_default_confpath()
-
-        # toml load
-        with tomlpath.open() as f: tomldic = toml.load(f)
-        return tomldic
-
-
-class Analyzer(AnalyzerFile):
-
-    MSG_dict: dict = {
-        'buffer' : BufStemPlanter, 
-        'pafclose': PaFClosePlanter
-    }
-
-    @classmethod
-    def analyzer_init(cls, rootpath: Path, ltdate: str):
-        super()._analy_file_init(rootpath, ltdate)
-
-
+    # AnalyzerFile instance used for checking the settings are correct or not,
+    # or preparing directory for stem whose validity is True.
     def __init__(self, rootdir: Path):
-        # define directory structure
         super().__init__(rootdir)
-
-        # read stock.csv
-        #self._stockdata = super().get_stockdata()
         # config load
-        tomldic = super()._load_conf()
+        tomldic = self._load_conf()
         # keys: dic_keys include classid. ex) ['buffer', 'pafclose', ... ]
         self._config, self._useless = dict(), dict()
         for msgkey, stemconf in tomldic.items():
@@ -144,6 +129,33 @@ class Analyzer(AnalyzerFile):
             else:
                 self._useless[msgkey] = stemconf
 
+    def _planting_init(self):
+        # create MSG's directory
+        for classid, msgconf in self._config.items():
+            # get class extended Multi-Stem Generator class
+            MSG = self.__class__.MSG_dict[classid]
+            # decide stem root directory
+            msg_path = super()._get_filepath(classid, noerror=True)
+            datafiles = msgconf['planting']['datafiles']
+            branchconf = msgconf['branching']
+            # call MSG init
+            msg_path.mkdir()
+            MSG._plant_file_init(msg_path, datafiles, branchconf)
+
+
+class Analyzer(AnalyzerBase):
+
+    @classmethod
+    def analyzer_init(cls, rootpath: Path, ltdate: str):
+        super()._analy_init(rootpath, ltdate)
+
+
+    def __init__(self, rootdir: Path):
+        # define directory structure
+        super().__init__(rootdir)
+
+        # read stock.csv
+        self._stockdata = super().get_stockdata()
         # planting Multi-Stem Generator
         self._msglist = self.planting()
 

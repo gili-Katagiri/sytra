@@ -15,11 +15,12 @@ class SMAGenerator():
 
     def __init__(self, params):
         self._pbranch = params
+        self._names = self.__class__._naming(params)
 
     def apply(self, mainvalues):
         rowx = pd.Series(name=self.__class__.colname)
         # define row's name
-        idxs = self.__class__._naming(self._pbranch)
+        idxs = self._names
         vals = []
         for p in self._pbranch:
             # calcuration values

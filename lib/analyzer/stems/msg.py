@@ -13,8 +13,6 @@ class MultiStemGenerator():
     PlantStem: type
     # identification: this may config file name
     classid: str
-    # timely flag
-    udflag: int
     # tuple: dependent root parameters
     depend_rootcol: Tuple[str]
     @classmethod
@@ -23,6 +21,31 @@ class MultiStemGenerator():
     Branch_dict = {
         'SMA': SMAGenerator
     }
+    
+    @classmethod
+    def _plant_file_init(cls, rootpath, datafiles, branchconf): 
+        # Stem datafile include Date
+        colstr = 'Date'
+        for col in cls.PlantStem.columns: colstr += (','+col)
+        # get branch generator list
+        bglist = cls._enum_branch( branchconf )
+        for bg in bglist:
+            for col in bg._names: colstr += (','+col)
+        # make files
+        for fname in datafiles: (rootpath/fname).write_text(colstr)
+
+    @classmethod
+    def _enum_branch(cls, branchconf: dict):
+        # use List to express tree
+        bglist = []
+        for bid, bconf in branchconf.items():
+            # get BranchGenerator CLASS
+            BG = cls.Branch_dict[bid]
+            # make BranchTree instance
+            # arg: Stem.Branching.bid.branching
+            bgins = BG(bconf['branch'])
+            bglist.append(bgins)
+        return  bglist
 
     def __init__(self, msgpath, datafiles, tpargs, branchconf):
         # create 
@@ -36,25 +59,13 @@ class MultiStemGenerator():
             stem = Stem(self, msgpath/fname, param)
             self._stemlist.append(stem)
 
-    # make branch tree
-    def _enum_branch(self):
-        # use List to express tree
-        bglist = []
-        for bid, bconf in self._branchconf.items():
-            # get BranchGenerator CLASS
-            BG = self.__class__.Branch_dict[bid]
-            # make BranchTree instance
-            # arg: Stem.Branching.bid.branching
-            bgins = BG(bconf['branch'])
-            bglist.append(bgins)
-        return  bglist
-
     def branching(self):
         # it already set, return it
         if self._branch_initialized: return self._branchlist
         
         # enumerate branches
-        bglist = self._enum_branch()
+        bglist = self.__class__._enum_branch(self._branchconf)
+
         # if depsolve: solve the branch dependants ??
         
         self._branch_initialized=True
@@ -124,7 +135,7 @@ class StemBase():
     # generating columns
     columns: Tuple[str]
     main_column: str
-
+    
     # read data
     def __init__(self, parent, filepath, params):
         self._parent_generator = parent

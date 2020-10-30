@@ -46,3 +46,27 @@ class BufStemPlanter(PStemGenerator):
     PlantStem = BufStem
     classid = 'buffer'
     depend_rootcol = ('Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
+
+    @classmethod
+    def _plant_file_init(cls, rootpath, datafiles, branchconf):
+        import pandas as pd
+        # datafiles name can not be changed 
+        if tuple(datafiles) != ('daily.csv', 'weekly.csv', 'monthly.csv'):
+            raise AnalyzerError
+        dpath = rootpath/'daily.csv'
+        dpath.symlink_to('../stock.csv')
+
+        cols = ['Date']
+        bglist = super()._enum_branch( branchconf)
+        for bg in bglist: cols += list(bg._names)
+        
+        # cols = [SMA05, SMA08, ...]
+        brdf = pd.DataFrame(columns=cols)
+        brdf.set_index('Date', inplace=True)
+        stckdf = pd.read_csv(
+            dpath, header=0, index_col='Date', parse_dates=True, dtype=float
+        )
+        daydf = pd.concat([stckdf, brdf], axis=1, join='outer')
+        daydf.to_csv(dpath)
+
+        super()._plant_file_init(rootpath, datafiles[1:], branchconf)

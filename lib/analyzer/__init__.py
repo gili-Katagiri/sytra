@@ -1,1 +1,1 @@
-from .analyzer import Analyzer, AnalyzerError
+from .analyzer import Analyzer, AnalyzerBase, AnalyzerError
