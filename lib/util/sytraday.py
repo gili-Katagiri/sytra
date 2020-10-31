@@ -59,6 +59,14 @@ class SytraDay():
         if (ndate-cdate).days>6 or cdate.weekday()>ndate.weekday(): dmode+=0b010
         
         return dmode
+    @classmethod
+    def datemodes(cls, dates):
+        dmodes = []
+        dates.append(cls.step_trading(dates[-1]))
+        for cdate, ndate in zip(dates, dates[1:]):
+            dmodes.append( cls.datemode(cdate, ndate) )
+        del dates[-1]
+        return dmodes
 
     def __init__( self, day: str):
         self._set_fromstr(day, check=False)
