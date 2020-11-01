@@ -1,5 +1,5 @@
 from util import mthtools as mth
-from .msg import StemBase, PStemGenerator
+from .msg import StemBase, StemBranchGenerator
 
 class PaFAbstract(StemBase):
     
@@ -86,6 +86,22 @@ class PaFClose(PaFAbstract):
     columns = ( 'pafc', )
     main_column = 'pafc'
 
+    # interface
+    def _batch_update(self, dates, cvalues, *nouse):
+        # dmode_list used in T-Planting Stem, no use at this class
+        # create abspath with pre-REVERSAL DAY's list
+        # cvalues: 1D numpy.array
+        rd_list = []
+        for date, close in zip(dates, cvalues):
+            val, reflag = self._update_(close)
+            # if reverse: append else overwrite
+            if reflag: rd_list.append(date)
+            else: rd_list[-1]=date
+        # create _X_df by _X_df_create, that meet some conditions
+        pafcdf = super()._X_df_create(rd_list, self._abspath, dtype='int64')
+        self._X_df = pafcdf
+        return pafcdf
+
     def _update_(self, close):
 
         # current point 
@@ -119,9 +135,9 @@ class PaFClose(PaFAbstract):
         return (self._abspath[-1],), reflag
 
 
-class PaFClosePlanter(PStemGenerator):
+class PaFClosePlanter(StemBranchGenerator):
     PlantStem = PaFClose
     classid = 'pafclose'
-    depend_rootcol = ('Close', )
+    depend_rootcol = 'Close'
     
 

@@ -1,89 +1,89 @@
-from typing import Tuple, Set
+from typing import Tuple, Set, Union
 
 import pandas as pd
 
 
 from analyzer.branchs.sma import SMAGenerator
+from util.sytraday import SytraDay
 
 
 # Planter
 class MultiStemGenerator():
 
-    # class for planting: Multi-Stem ex) Buffer, PaF_close
+    # class for planting: Multi-Stem ex) BufStem, PaF_close
     PlantStem: type
     # identification: this may config file name
     classid: str
     # tuple: dependent root parameters
-    depend_rootcol: Tuple[str]
+    depend_rootcol: Union[ str, Tuple[str, ...] ]
+    # provide depend_rootcol if tuple: to_list, str: as it
     @classmethod
-    def get_dependent(cls): return cls.depend_rootcol
-    # callable Branch dictionary
-    Branch_dict = {
-        'SMA': SMAGenerator
-    }
+    def get_dependent(cls, flisted=True): 
+        cols = cls.depend_rootcol 
+        if type(cols) is tuple: return list(cols)
+        elif flisted: return [cols] # listed str
+        else: return cols # flisted False: return str
     
     @classmethod
-    def _plant_file_init(cls, rootpath, datafiles, branchconf): 
-        # Stem datafile include Date
+    def _plant_file_init(cls, msgpath, pconf, stockdata): 
+        # preparing datafile enable to make Stem instance
+        datafiles = pconf['datafiles']
         colstr = 'Date'
         for col in cls.PlantStem.columns: colstr += (','+col)
-        # get branch generator list
-        bglist = cls._enum_branch( branchconf )
-        for bg in bglist:
-            for col in bg._names: colstr += (','+col)
-        # make files
-        for fname in datafiles: (rootpath/fname).write_text(colstr)
+        colstr+='\n'
+        for fname in datafiles: (msgpath/fname).write_text(colstr)
+        
+        # create class instance
+        # call this function from Analyzer: MSG._plant_file_init, MSG=~Planter
+        # not in Capsule??
+        msg = cls( msgpath, pconf, dict())
+        # stockdata from stock.csv, Index parsed to pd.TimeStamp
+        msg.stems_batch(stockdata)
 
-    @classmethod
-    def _enum_branch(cls, branchconf: dict):
-        # use List to express tree
-        bglist = []
-        for bid, bconf in branchconf.items():
-            # get BranchGenerator CLASS
-            BG = cls.Branch_dict[bid]
-            # make BranchTree instance
-            # arg: Stem.Branching.bid.branching
-            bgins = BG(bconf['branch'])
-            bglist.append(bgins)
-        return  bglist
 
-    def __init__(self, msgpath, datafiles, tpargs, branchconf):
+    def __init__(self, msgpath, plantconf):
         # create 
         self._stemlist = []
         Stem = self.__class__.PlantStem
-        # call Branching on time
-        self._branch_initialized = False
-        self._branchconf = branchconf
+        # sep
+        datafiles = plantconf['datafiles']
+        params = plantconf['p-planting']
         # make stems
-        for fname, param in zip(datafiles, tpargs):
+        for fname, param in zip(datafiles, params):
             stem = Stem(self, msgpath/fname, param)
             self._stemlist.append(stem)
 
-    def branching(self):
-        # it already set, return it
-        if self._branch_initialized: return self._branchlist
-        
-        # enumerate branches
-        bglist = self.__class__._enum_branch(self._branchconf)
+    # Batch process
+    def stems_batch(self, rootdf):
+        # get tuple or str
+        desired_col = self.__class__.get_dependent(flisted=False)
+        # desired_col is str: pd.Series, tuple: pd.DataFrame
+        values = rootdf.loc[:, desired_col].values
 
-        # if depsolve: solve the branch dependants ??
-        
-        self._branch_initialized=True
-        self._branchlist = bglist
-        return bglist
+        # get rownames as list (or to_numpy(): as array)
+        rownames = rootdf.index
+        # dmode into list
+        dmode_list = SytraDay.datemodes(rownames.copy().to_list())
 
-
+        #print(rownames[-1], values[-1], dmode_list[-1])
+        # batch process
+        for stem in self._stemlist:
+            # protocol: columns=Stem.columns, index.name='Date'
+            # how to meet the condition: use StemBase._X_df_create
+            stem._batch_update(rownames.to_list(), values, dmode_list)
+            stem._X_save()
+    # Sequential process
     def stems_update(self, rowname, dmode, rowdata):
-        # get list
-        desired_lst = list(self.__class__.get_dependent())
+        # rowdata is pd.Series, why is the reason listed forthly
+        # if returned str: next provide_val is not iteable!
+        desired_col = self.__class__.get_dependent(flisted=True)
         # pd.Series.loc[ arg ]: available arg is list or str
-        # str-> numpy.'~', list-> pd.Series
-        provide_val = rowdata.loc[ desired_lst ]
+        provide_val = rowdata.loc[ desired_col ]
 
         for stem in self._stemlist:
             # rowx: daily row data, wflag modification flag expressed as int
             stem._row_update(rowname, dmode, *provide_val)
-            #stem.apply(rowname, bglist)
+            stem._X_save()
 
     """
     def depend_solve(self, branchenume, bfilter):
@@ -101,34 +101,47 @@ class MultiStemGenerator():
         return solved
     """
 
-'''
-    TBranchingGenerator and PBranchingGenerator have function __init__,
-    those are the SAME function which defined in MultiStemGenerator
-    except for the argment names.
+class StemBranchGenerator(MultiStemGenerator): 
+
+    # callable Branch dictionary
+    Branch_dict = {
+        'SMA': SMAGenerator
+    }
+
+    # return listed BranchGenerator which is constracted by branch config
+    @classmethod
+    def _enum_branch(cls, branchconf: dict):
+        # use List to express tree
+        bglist = []
+        for bid, bconf in branchconf.items():
+            # get BranchGenerator CLASS
+            BG = cls.Branch_dict[bid]
+            # make BranchTree instance
+            # arg: Stem.Branching.bid.branching
+            bgins = BG(bconf['branch'])
+            bglist.append(bgins)
+        return  bglist
     
-    These classes should be distinguished as different branching system.
-    P-Branching process completed without considering which process should be done,
-    but T-Branching process need to switch according to variable 'dmode'.
-'''
-
-
-class PStemGenerator(MultiStemGenerator): 
-    # args example PaF: ( (p1, r1), (p2, r2), ... )
+    # overload super().__init__
     def __init__(self, msgpath, plantconf, branchconf):
-        datafiles = plantconf['datafiles']
-        p_planting = plantconf['p-planting']
-        super().__init__(msgpath, datafiles, p_planting, branchconf)
+        super().__init__(msgpath, plantconf)
+        # call Branching on time
+        self._branch_initialized = False
+        self._branchconf = branchconf
+    
+    def branching(self):
+        # it already set, return it
+        if self._branch_initialized: return self._branchlist
+        
+        # enumerate branches
+        bglist = self.__class__._enum_branch(self._branchconf)
 
+        # if depsolve: solve the branch dependants ??
+        
+        self._branch_initialized=True
+        self._branchlist = bglist
+        return bglist
 
-'''
-class TStemGenerator(MultiStemGenerator): 
-    # T-Branching desire stems have timeid: ( t1, t2, ...)
-    def __init__(self, msgpath, plantconf, branchconf):
-        # make Stems and append
-        datafiles = platnconf['datafiles']
-        t_planting = plantconf['t-planting']
-        super().__init__(msgpath, datafiles, t_planting, branchconf)
-'''
 
 class StemBase():
 
@@ -150,21 +163,37 @@ class StemBase():
     def _params_init(self, params): pass
     def _row_update(self, rowname, dmode, *rootval): pass
 
+    # for loop process at low speed
+    # if possible, better to override
+    def _batch_update(self, dates, values, dmodes):
+        for rowname, rowx, dmode in zip(dates,values,dmodes):
+            self._row_update(rowname, dmode, *rowx)
+
     # utility
+    # for sequential update
     def _row_create(self, rowname, values=None, dtype='float64'):
         # prepare Series
         rowx = pd.Series(data=values, index=self.__class__.columns,
                 name=rowname, dtype=dtype)
         return rowx
 
+    # for batch update
+    def _X_df_create(self, index, values, dtype='float64'):
+        cols = self.__class__.columns
+        xdf = pd.DataFrame(data=values, index=index, columns=cols, dtype=dtype)
+        xdf.index.name = 'Date'
+        return xdf
 
     def axes_plot(self, ax, pltsize=30): pass
 
     # utility
     def get_main_data(self):
-        return self._X_df.loc[:, self.__class__.main_column].values
+        return self._X_df.loc[:, self.__class__.main_column].to_numpy()
     def _X_update(self, rowx): self._X_df.loc[rowx.name]=rowx
     def _X_drop(self): self._X_df.drop(self._X_df.index[-1], inplace=True)
+    def _X_save(self):
+        self._X_df.to_csv( self._filepath, mode='w', 
+            header=True, index=True, encoding='UTF-8')
     def _branching(self, rowname):
         # get branch list
         blist = self._parent_generator.branching()

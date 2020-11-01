@@ -128,34 +128,37 @@ class AnalyzerBase(AnalyzerFile):
                 self._config[msgkey] = stemconf
             else:
                 self._useless[msgkey] = stemconf
+        # read stock.csv
+        self._stockdata = super().get_stockdata()
 
+
+    # make MSG directory and datafiles by p-planting, EXCLUDE branch columns
     def _planting_init(self):
-        # create MSG's directory
+        # create MSG's directory 9999/buffer/ 9999/pafclose/
         for classid, msgconf in self._config.items():
             # get class extended Multi-Stem Generator class
             MSG = self.__class__.MSG_dict[classid]
             # decide stem root directory
             msg_path = super()._get_filepath(classid, noerror=True)
-            datafiles = msgconf['planting']['datafiles']
-            branchconf = msgconf['branching']
+            pconf = msgconf['planting']
             # call MSG init
+            # stockdata from stock.csv, parsed_date index
             msg_path.mkdir()
-            MSG._plant_file_init(msg_path, datafiles, branchconf)
+            MSG._plant_file_init(msg_path, pconf, self._stockdata)
 
 
 class Analyzer(AnalyzerBase):
 
     @classmethod
     def analyzer_init(cls, rootpath: Path, ltdate: str):
+        # 9999/stock.csv, 9999/analyconf.toml
         super()._analy_init(rootpath, ltdate)
 
 
     def __init__(self, rootdir: Path):
         # define directory structure
         super().__init__(rootdir)
-
-        # read stock.csv
-        self._stockdata = super().get_stockdata()
+        # planting need to read _X_df from datafiles
         # planting Multi-Stem Generator
         self._msglist = self.planting()
 
@@ -180,6 +183,4 @@ class Analyzer(AnalyzerBase):
     def daily_update(self, rowname, dmode, rowdata):
         for msg in self._msglist:
             msg.stems_update(rowname, dmode, rowdata)
-
-
 
