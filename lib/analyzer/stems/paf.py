@@ -10,7 +10,7 @@ class PaFAbstract(StemBase):
     def _params_init(self, params):
         # params = [ point, reverse ]
         self._point, self._reverse = params
-        self._abspath = self.get_main_data().tolist()
+        self._abspath = self.get_maindata().tolist()
     # override interface
     def _row_update(self, rowname, dmode, *rootval):
         # start base branching

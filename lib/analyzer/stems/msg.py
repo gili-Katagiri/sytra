@@ -187,22 +187,40 @@ class StemBase():
     def axes_plot(self, ax, pltsize=30): pass
 
     # utility
-    def get_main_data(self):
+    def get_maindata(self):
         return self._X_df.loc[:, self.__class__.main_column].to_numpy()
+    def get_rownames(self):
+        return self._X_df.index.values
     def _X_update(self, rowx): self._X_df.loc[rowx.name]=rowx
     def _X_drop(self): self._X_df.drop(self._X_df.index[-1], inplace=True)
     def _X_save(self):
         self._X_df.to_csv( self._filepath, mode='w', 
             header=True, index=True, encoding='UTF-8')
+
+    # branching utility
     def _branching(self, rowname):
         # get branch list
         blist = self._parent_generator.branching()
-        # get main values for update branch
-        mainvalues = self.get_main_data()
         for branch in blist:
             # brrow is pd.Series
-            brrow = branch.apply(mainvalues)
+            brrow = branch.apply(self)
             idxs = brrow.index.tolist()
             # _X_df's latest row is updated, but NOT save ??
             self._X_df.loc[rowname, idxs] = brrow
+    
+    def _check_branch_columns(self, withbatch=True):
+        # get branch list
+        blist = self._parent_generator.branching()
+        columns = self._X_df.columns
+        # check columns has branch._names
+        for branch in blist:
+            # check_columns returnslist of columns, not in _X_df
+            nocols = branch.check_columns_in(columns)
+            # nocols is empty and if possible, call batch process
+            if nocols:
+                if withbatch:
+                    subdf = branch.apply_batch(self, nocols)
+                    self._X_df=pd.concat([self._X_df, subdf], axis=1, join='outer')
+                else:
+                    print('{0} is not included in {1}.'.format([branch._col_names[i] for i in nocols], columns.to_list()))
 
