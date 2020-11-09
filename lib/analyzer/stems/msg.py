@@ -25,21 +25,15 @@ class MultiStemGenerator():
         else: return cols # flisted False: return str
     
     @classmethod
-    def _plant_file_init(cls, msgpath, pconf, stockdata): 
+    def _plant_file_init(cls, msgpath, pconf): 
         # preparing datafile enable to make Stem instance
         datafiles = pconf['datafiles']
         colstr = 'Date'
         for col in cls.PlantStem.columns: colstr += (','+col)
         colstr+='\n'
+        # create datafiles
         for fname in datafiles: (msgpath/fname).write_text(colstr)
         
-        # create class instance
-        # call this function from Analyzer: MSG._plant_file_init, MSG=~Planter
-        # not in Capsule??
-        msg = cls( msgpath, pconf, dict())
-        # stockdata from stock.csv, Index parsed to pd.TimeStamp
-        msg.stems_batch(stockdata)
-
 
     def __init__(self, msgpath, plantconf):
         # create 
@@ -54,7 +48,7 @@ class MultiStemGenerator():
             self._stemlist.append(stem)
 
     # Batch process
-    def stems_batch(self, rootdf):
+    def stems_batch(self, rootdf, skip=0):
         # get tuple or str
         desired_col = self.__class__.get_dependent(flisted=False)
         # desired_col is str: pd.Series, tuple: pd.DataFrame
@@ -67,11 +61,12 @@ class MultiStemGenerator():
 
         #print(rownames[-1], values[-1], dmode_list[-1])
         # batch process
-        for stem in self._stemlist:
+        for stem in self._stemlist[skip:]:
             # protocol: columns=Stem.columns, index.name='Date'
             # how to meet the condition: use StemBase._X_df_create
-            stem._batch_update(rownames.to_list(), values, dmode_list)
+            stem.batch_update(rownames.to_list(), values, dmode_list)
             stem._X_save()
+
     # Sequential process
     def stems_update(self, rowname, dmode, rowdata):
         # rowdata is pd.Series, why is the reason listed forthly
@@ -82,7 +77,7 @@ class MultiStemGenerator():
 
         for stem in self._stemlist:
             # rowx: daily row data, wflag modification flag expressed as int
-            stem._row_update(rowname, dmode, *provide_val)
+            stem.row_update(rowname, dmode, *provide_val)
             stem._X_save()
 
     """
@@ -107,6 +102,19 @@ class StemBranchGenerator(MultiStemGenerator):
     Branch_dict = {
         'SMA': SMAGenerator
     }
+
+    @classmethod
+    def plant_init(cls, msgpath, pconf, bconf, stockdata, skip=0): 
+        # create datafiles following analyconf
+        cls._plant_file_init(msgpath, pconf)
+        # create class instance
+        msg = cls( msgpath, pconf, bconf)
+        # create stem main data, no-branching
+        # stockdata from stock.csv, Index parsed to pd.TimeStamp
+        msg.stems_batch(stockdata, skip=skip)
+        # branching init by check bconf
+        msg.check_branching(withbatch=True)
+
 
     # return listed BranchGenerator which is constracted by branch config
     @classmethod
@@ -142,6 +150,37 @@ class StemBranchGenerator(MultiStemGenerator):
         self._branchlist = bglist
         return bglist
 
+    # check branching interface 
+    # entrypoint itr process
+    def check_branching(self, withbatch=True):
+        # get branch list
+        blist = self.branching()
+        # same MSG's stems have same columns
+        leader = self._stemlist[0]
+        columns = leader._X_df.columns
+        print('Existing columns:', columns.to_list())
+        # collect the not-in columns
+        for bgene in blist:
+            nocols = bgene.check_columns_in(columns)
+            if nocols:
+                print('[Modified]: {0} is not included.'\
+                        .format([bgene._col_names[i] for i in nocols]))
+                if withbatch:
+                    print('[Call]: Batch process for branches which is not exist.')
+                    self._branch_batch(bgene, nocols)
+            else: print('[Complete]:Already, Ready to Planting!')
+    
+    # call batch process for branches which is not exist
+    def _branch_batch(self, bgene, nocols): 
+        # target: all stems
+        for stem in self._stemlist:
+            # create missed dataframe
+            subdf = bgene.apply_batch(stem, nocols)
+            # concatinate
+            stem._X_df=pd.concat([stem._X_df, subdf], axis=1, join='outer')
+            stem._X_save()
+
+
 
 class StemBase():
 
@@ -161,13 +200,12 @@ class StemBase():
 
     # interface
     def _params_init(self, params): pass
-    def _row_update(self, rowname, dmode, *rootval): pass
-
+    def row_update(self, rowname, dmode, *rootval): pass
     # for loop process at low speed
     # if possible, better to override
-    def _batch_update(self, dates, values, dmodes):
+    def batch_update(self, dates, values, dmodes):
         for rowname, rowx, dmode in zip(dates,values,dmodes):
-            self._row_update(rowname, dmode, *rowx)
+            self.row_update(rowname, dmode, *rowx)
 
     # utility
     # for sequential update
@@ -176,7 +214,6 @@ class StemBase():
         rowx = pd.Series(data=values, index=self.__class__.columns,
                 name=rowname, dtype=dtype)
         return rowx
-
     # for batch update
     def _X_df_create(self, index, values, dtype='float64'):
         cols = self.__class__.columns
@@ -184,8 +221,8 @@ class StemBase():
         xdf.index.name = 'Date'
         return xdf
 
+    # interface
     def axes_plot(self, ax, pltsize=30): pass
-
     # utility
     def get_maindata(self):
         return self._X_df.loc[:, self.__class__.main_column].to_numpy()
@@ -207,20 +244,3 @@ class StemBase():
             idxs = brrow.index.tolist()
             # _X_df's latest row is updated, but NOT save ??
             self._X_df.loc[rowname, idxs] = brrow
-    
-    def _check_branch_columns(self, withbatch=True):
-        # get branch list
-        blist = self._parent_generator.branching()
-        columns = self._X_df.columns
-        # check columns has branch._names
-        for branch in blist:
-            # check_columns returnslist of columns, not in _X_df
-            nocols = branch.check_columns_in(columns)
-            # nocols is empty and if possible, call batch process
-            if nocols:
-                if withbatch:
-                    subdf = branch.apply_batch(self, nocols)
-                    self._X_df=pd.concat([self._X_df, subdf], axis=1, join='outer')
-                else:
-                    print('{0} is not included in {1}.'.format([branch._col_names[i] for i in nocols], columns.to_list()))
-

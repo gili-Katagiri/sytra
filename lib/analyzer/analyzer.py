@@ -50,6 +50,7 @@ class AnalyzerFile(AnalyzerFilePath):
         )
         return stock_df
 
+    # read analyconf.toml as dict
     def _load_conf(self):
         # readpath
         tomlpath = self.get_confpath()
@@ -59,7 +60,7 @@ class AnalyzerFile(AnalyzerFilePath):
 
 class AnalyzerBase(AnalyzerFile):
 
-    MSG_dict: dict = {
+    stemname_map: dict = {
         'buffer' : BufStemPlanter, 
         'pafclose': PaFClosePlanter
     }
@@ -67,14 +68,14 @@ class AnalyzerBase(AnalyzerFile):
     @classmethod
     def _analy_init(cls, rootpath: Path, ltdate: str):
         # primitive.csv -> .primitive.csv, stock.csv
-        cls.follow_process(rootpath, ltdate)
+        cls._follow_process(rootpath, ltdate)
 
         # prepare analyconf.toml
         defconf = super()._hideget_default_confpath().read_text()
         (rootpath/'analyconf.toml').write_text(defconf)
 
     @classmethod
-    def follow_process(cls, rootpath: Path, ltdate: str):
+    def _follow_process(cls, rootpath: Path, ltdate: str):
         # read primitive and hide file
         prpath = rootpath/'primitive.csv'
         prdf = super().get_primitivedata(prpath)
@@ -83,13 +84,13 @@ class AnalyzerBase(AnalyzerFile):
         datestr = prdf.iat[-1, 0].replace('/', '-')
         if datestr!=ltdate: raise AnalyzerError('irregal date error.')
         # drop missing row and values, set index, dtype='float'
-        stckdf = cls.compensate(prdf)
+        stckdf = cls._compensate(prdf)
         # save as 9999/stocks.csv
         stckdf.to_csv( rootpath/'stock.csv' )
         prpath.rename(rootpath/'.primitive.csv')
 
     @classmethod
-    def compensate(cls, prdf):
+    def _compensate(cls, prdf):
         # return copy, default deep=True
         stckdf = prdf.copy()
         # Open, High, Low, Close, ...
@@ -132,23 +133,25 @@ class AnalyzerBase(AnalyzerFile):
         self._stockdata = super().get_stockdata()
 
 
-    # make MSG directory and datafiles by p-planting, EXCLUDE branch columns
-    def _planting_init(self):
+    # make MSG directory and datafiles by p-planting with branch columns
+    def planting_init(self):
         # create MSG's directory 9999/buffer/ 9999/pafclose/
         for classid, msgconf in self._config.items():
             # get class extended Multi-Stem Generator class
-            MSG = self.__class__.MSG_dict[classid]
+            MSG = self.__class__.stemname_map[classid]
             # decide stem root directory
             msg_path = super()._get_filepath(classid, noerror=True)
             pconf = msgconf['planting']
+            bconf = msgconf['branching']
             # call MSG init
             # stockdata from stock.csv, parsed_date index
             msg_path.mkdir()
-            MSG._plant_file_init(msg_path, pconf, self._stockdata)
+            MSG.plant_init(msg_path, pconf, bconf, self._stockdata)
 
 
 class Analyzer(AnalyzerBase):
 
+    # init process interface
     @classmethod
     def analyzer_init(cls, rootpath: Path, ltdate: str):
         # 9999/stock.csv, 9999/analyconf.toml
@@ -160,16 +163,16 @@ class Analyzer(AnalyzerBase):
         super().__init__(rootdir)
         # planting need to read _X_df from datafiles
         # planting Multi-Stem Generator
-        self._msglist = self.planting()
+        self._msglist = self._planting()
 
 
-    def planting(self):
+    def _planting(self):
         # Multi-Stem Generator instance list
         msglst = []
         # make instances from MSG
         for classid, conf in self._config.items():
             # idetify the class, extends Multiple-Stem Genrator
-            MSG = self.__class__.MSG_dict[classid]
+            MSG = self.__class__.stemname_map[classid]
             # stem root directory
             msg_path = self._get_filepath(classid)
             # make instance
@@ -179,8 +182,12 @@ class Analyzer(AnalyzerBase):
 
         return msglst
 
+    # update interface
     # rowdata from summary.csv 
     def daily_update(self, rowname, dmode, rowdata):
         for msg in self._msglist:
             msg.stems_update(rowname, dmode, rowdata)
-
+    # check the divergence between analyconf.toml and datafile
+    def check_planting_callable(self, withbatch=True):
+        for msg in self._msglist:
+            msg.check_branching(withbatch=withbatch)

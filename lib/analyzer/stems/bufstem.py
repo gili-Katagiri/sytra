@@ -11,7 +11,7 @@ class BufStem(StemBase):
         self._row_initialize = bool(params[1])
 
     #override interface
-    def _row_update(self, rowname, dmode, *rootval): 
+    def row_update(self, rowname, dmode, *rootval): 
         # end base branching
         rowx = self._row_create(rowname, *rootval)
         if not self._row_initialize: self._X_drop()
@@ -24,12 +24,12 @@ class BufStem(StemBase):
             self._row_initialize = True
 
     #override interface
-    def _batch_update(self, dates, values, dmodes):
+    def batch_update(self, dates, values, dmodes):
         # dates:  ['2020-01-04', '2020-01-05', ... ]
         # values: [ [open, high,...], [open, high,...], ... ]
         rowold = None
         # ignore last index
-        for idx in range( len(dates)-1 ):
+        for idx in range( len(dates) ):
             date, rowvalues, dmode = dates[idx], values[idx], dmodes[idx]
             # create values row
             rowx = self._row_create(date, *rowvalues)
@@ -40,13 +40,10 @@ class BufStem(StemBase):
             if dmode&self._tmode:
                 self._X_update(rowx)
                 rowold = None  # restart
-        if rowold is None: # updated just before break loop
-            self._row_initialize = True
-        else:
-            self._X_update(rowold)  # add tail _X_df
-            self._row_initialize=False
-        # last index
-        self._row_update(dates[-1], dmodes[-1], *values[-1])
+        # rowold is None: latest rowx is already exists-> not call _X_update
+        # else: not exist latest rowx
+        if rowold is not None: self._X_update(rowold)
+        self._row_initialize=bool(dmodes[-1]&self._tmode)
 
     # overload utility
     def _row_create(self, rowname, *values):
@@ -78,11 +75,11 @@ class BufStemPlanter(StemBranchGenerator):
     depend_rootcol = ('Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
 
     @classmethod
-    def _plant_file_init(cls, rootpath, pconf, stockdata):
-        # datafiles name can not be changed 
-        (rootpath/'daily.csv').symlink_to('../stock.csv')
+    def _plant_file_init(cls, msgpath, pconf):
+        super()._plant_file_init(msgpath, pconf)
+        (msgpath/'daily.csv').unlink()
+        (msgpath/'daily.csv').symlink_to('../stock.csv')
 
-        # delete daily config
-        del pconf['datafiles'][0]
-        del pconf['p-planting'][0]
-        super()._plant_file_init(rootpath, pconf, stockdata)
+    @classmethod
+    def _plant_init(cls, rootpath, pconf, bconf, stockdata):
+        super()._plant_init(rootpath, pconf, bconf, stockdata, exclude=1)

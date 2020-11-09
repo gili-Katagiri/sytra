@@ -12,7 +12,7 @@ class PaFAbstract(StemBase):
         self._point, self._reverse = params
         self._abspath = self.get_maindata().tolist()
     # override interface
-    def _row_update(self, rowname, dmode, *rootval):
+    def row_update(self, rowname, dmode, *rootval):
         # start base branching
         rowx, spflag = self._row_create(rowname, *rootval)
         # spflag is True: branching without rowx
@@ -87,7 +87,7 @@ class PaFClose(PaFAbstract):
     main_column = 'pafc'
 
     # interface
-    def _batch_update(self, dates, cvalues, *nouse):
+    def batch_update(self, dates, cvalues, *nouse):
         # dmode_list used in T-Planting Stem, no use at this class
         # create abspath with pre-REVERSAL DAY's list
         # cvalues: 1D numpy.array
