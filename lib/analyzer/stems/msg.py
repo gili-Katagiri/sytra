@@ -1,4 +1,4 @@
-from typing import Tuple, Set, Union
+from typing import List, Tuple, Set, Union
 
 import pandas as pd
 
@@ -35,7 +35,7 @@ class MultiStemGenerator():
         for fname in datafiles: (msgpath/fname).write_text(colstr)
         
 
-    def __init__(self, msgpath, plantconf):
+    def __init__(self, msgpath, plantconf: dict):
         # create 
         self._stemlist = []
         Stem = self.__class__.PlantStem
@@ -48,27 +48,27 @@ class MultiStemGenerator():
             self._stemlist.append(stem)
 
     # Batch process
-    def stems_batch(self, rootdf, skip=0):
+    def stems_batch(self, rootdf: pd.DataFrame, skip: int=0):
         # get tuple or str
         desired_col = self.__class__.get_dependent(flisted=False)
         # desired_col is str: pd.Series, tuple: pd.DataFrame
         values = rootdf.loc[:, desired_col].values
 
-        # get rownames as list (or to_numpy(): as array)
-        rownames = rootdf.index
+        # get rownames Index of pd.Timestamp
+        rownames = rootdf.index # type: pd.Index[pd.Timestamp]
         # dmode into list
-        dmode_list = SytraDay.datemodes(rownames.copy().to_list())
+        dmode_list = SytraDay.datemodes(rownames.copy().date.tolist())
 
         #print(rownames[-1], values[-1], dmode_list[-1])
         # batch process
         for stem in self._stemlist[skip:]:
             # protocol: columns=Stem.columns, index.name='Date'
             # how to meet the condition: use StemBase._X_df_create
-            stem.batch_update(rownames.to_list(), values, dmode_list)
+            stem.batch_update(rownames, values, dmode_list)
             stem._X_save()
 
     # Sequential process
-    def stems_update(self, rowname, dmode, rowdata):
+    def stems_update(self, rowname: pd.Timestamp, dmode: int, rowdata: pd.Series):
         # rowdata is pd.Series, why is the reason listed forthly
         # if returned str: next provide_val is not iteable!
         desired_col = self.__class__.get_dependent(flisted=True)
@@ -79,6 +79,10 @@ class MultiStemGenerator():
             # rowx: daily row data, wflag modification flag expressed as int
             stem.row_update(rowname, dmode, *provide_val)
             stem._X_save()
+
+    # utility
+    def get_planting_params(self):
+        return [ stem.get_params() for stem in self._stemlist ]
 
     """
     def depend_solve(self, branchenume, bfilter):
@@ -104,7 +108,8 @@ class StemBranchGenerator(MultiStemGenerator):
     }
 
     @classmethod
-    def plant_init(cls, msgpath, pconf, bconf, stockdata, skip=0): 
+    def plant_init(cls, msgpath, pconf: dict, bconf: dict,\
+            stockdata: pd.DataFrame, skip: int=0): 
         # create datafiles following analyconf
         cls._plant_file_init(msgpath, pconf)
         # create class instance
@@ -114,11 +119,13 @@ class StemBranchGenerator(MultiStemGenerator):
         msg.stems_batch(stockdata, skip=skip)
         # branching init by check bconf
         msg.check_branching(withbatch=True)
+        # p-planting parameter update
+        pconf['p-planting']=msg.get_planting_params()
 
 
     # return listed BranchGenerator which is constracted by branch config
     @classmethod
-    def _enum_branch(cls, branchconf: dict):
+    def _enum_branch(cls, branchconf: dict)-> list:
         # use List to express tree
         bglist = []
         for bid, bconf in branchconf.items():
@@ -137,7 +144,7 @@ class StemBranchGenerator(MultiStemGenerator):
         self._branch_initialized = False
         self._branchconf = branchconf
     
-    def branching(self):
+    def branching(self)-> list:
         # it already set, return it
         if self._branch_initialized: return self._branchlist
         
@@ -171,7 +178,7 @@ class StemBranchGenerator(MultiStemGenerator):
             else: print('[Complete]:Already, Ready to Planting!')
     
     # call batch process for branches which is not exist
-    def _branch_batch(self, bgene, nocols): 
+    def _branch_batch(self, bgene, nocols: List[int]): 
         # target: all stems
         for stem in self._stemlist:
             # create missed dataframe
@@ -200,16 +207,18 @@ class StemBase():
 
     # interface
     def _params_init(self, params): pass
-    def row_update(self, rowname, dmode, *rootval): pass
+    def get_params(self): pass
+    def row_update(self, rowname: pd.Timestamp, dmode: int, *rootval):
+        pass
     # for loop process at low speed
     # if possible, better to override
-    def batch_update(self, dates, values, dmodes):
+    def batch_update(self, dates, values, dmodes: List[int]):
         for rowname, rowx, dmode in zip(dates,values,dmodes):
             self.row_update(rowname, dmode, *rowx)
 
     # utility
     # for sequential update
-    def _row_create(self, rowname, values=None, dtype='float64'):
+    def _row_create(self, rowname: pd.Timestamp, values=None, dtype='float64'):
         # prepare Series
         rowx = pd.Series(data=values, index=self.__class__.columns,
                 name=rowname, dtype=dtype)
@@ -229,10 +238,13 @@ class StemBase():
     def get_rownames(self):
         return self._X_df.index.values
     def _X_update(self, rowx): self._X_df.loc[rowx.name]=rowx
-    def _X_drop(self): self._X_df.drop(self._X_df.index[-1], inplace=True)
+    def _X_drop(self): self._X_df.drop(index=self._X_df.index[-1], inplace=True)
     def _X_save(self):
-        self._X_df.to_csv( self._filepath, mode='w', 
-            header=True, index=True, encoding='UTF-8')
+        simX = self._X_df.copy()
+        simX.index = self._X_df.index.date
+        simX.index.name = 'Date'
+        simX.to_csv( self._filepath, mode='w', 
+                        header=True, index=True, encoding='UTF-8')
 
     # branching utility
     def _branching(self, rowname):

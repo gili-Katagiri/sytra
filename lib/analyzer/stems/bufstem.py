@@ -9,9 +9,11 @@ class BufStem(StemBase):
         # params = [ tmode, intflag ]
         self._tmode = params[0]
         self._row_initialize = bool(params[1])
+    def get_params(self):
+        return [self._tmode, int(self._row_initialize)]
 
     #override interface
-    def row_update(self, rowname, dmode, *rootval): 
+    def row_update(self, rowname, dmode: int, *rootval): 
         # end base branching
         rowx = self._row_create(rowname, *rootval)
         if not self._row_initialize: self._X_drop()
@@ -25,7 +27,7 @@ class BufStem(StemBase):
 
     #override interface
     def batch_update(self, dates, values, dmodes):
-        # dates:  ['2020-01-04', '2020-01-05', ... ]
+        # dates:  pd.Index[ pd.Timestamp, ... ]
         # values: [ [open, high,...], [open, high,...], ... ]
         rowold = None
         # ignore last index
@@ -51,7 +53,7 @@ class BufStem(StemBase):
         rowx = super()._row_create(rowname, values=values, dtype='float64')
         if not self._row_initialize:
             # get latest values and rename
-            rowold = self._X_df.iloc[-1].copy().rename(rowname)
+            rowold = self._X_df.iloc[-1, 0:10].copy().rename(rowname)
             rowx = self._update_(rowx, rowold)
         return rowx
 

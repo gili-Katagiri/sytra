@@ -291,7 +291,7 @@ class Stocker(StockerFile):
             # create Analyzer interface
             dpath = super().get_stockpath(code)
             analy = Analyzer(dpath)
-            analy.daily_update(cdate, dmode, rowx)
+            analy.daily_update(cdate.get_daystr(), dmode, rowx)
         
         # post-process
         logpath = super().get_logpath() / (daystr.replace('-',''))

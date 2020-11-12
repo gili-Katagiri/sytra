@@ -1,5 +1,6 @@
 import pandas as pd
 import toml
+from typing import Union
 
 from pathlib import Path
 
@@ -35,7 +36,7 @@ class AnalyzerFile(AnalyzerFilePath):
                     'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
     # read 9999/primitive.csv
     @classmethod
-    def get_primitivedata(cls, prpath):
+    def get_primitivedata(cls, prpath: Path)-> pd.DataFrame:
         cols = cls.ROOT_COLUMNS
         prim_df = pd.read_csv(
             prpath, header=0, dtype=str, names=cols, encoding='UTF-8'
@@ -51,12 +52,14 @@ class AnalyzerFile(AnalyzerFilePath):
         return stock_df
 
     # read analyconf.toml as dict
-    def _load_conf(self):
+    def _load_conf(self)-> dict:
         # readpath
-        tomlpath = self.get_confpath()
-        # toml load
-        with tomlpath.open() as f: tomldic = toml.load(f)
+        tomlstr = super().get_confpath().read_text()
+        tomldic = toml.loads(tomlstr)
         return tomldic
+    def _dump_conf(self, tomldic: dict):
+        tomlstr = toml.dumps(tomldic)
+        super().get_confpath().write_text(tomlstr)
 
 class AnalyzerBase(AnalyzerFile):
 
@@ -90,7 +93,7 @@ class AnalyzerBase(AnalyzerFile):
         prpath.rename(rootpath/'.primitive.csv')
 
     @classmethod
-    def _compensate(cls, prdf):
+    def _compensate(cls, prdf: pd.DataFrame)-> pd.DataFrame:
         # return copy, default deep=True
         stckdf = prdf.copy()
         # Open, High, Low, Close, ...
@@ -146,8 +149,16 @@ class AnalyzerBase(AnalyzerFile):
             # call MSG init
             # stockdata from stock.csv, parsed_date index
             msg_path.mkdir()
+            # pconf: _config['planting']['p-planting'] is updated
             MSG.plant_init(msg_path, pconf, bconf, self._stockdata)
+            # save as analyconf.toml
+            self._config_dump()
 
+    # dump dict(_config + _useless)
+    def _config_dump(self):
+        savedic = dict()
+        savedic.update(**self._config, **self._useless)
+        super()._dump_conf(savedic)
 
 class Analyzer(AnalyzerBase):
 
@@ -184,10 +195,20 @@ class Analyzer(AnalyzerBase):
 
     # update interface
     # rowdata from summary.csv 
-    def daily_update(self, rowname, dmode, rowdata):
+    def daily_update(self, rowname: str, dmode: int, rowdata: pd.Series):
+        # str-> pd.Timestamp
+        rowname = pd.to_datetime(rowname)
         for msg in self._msglist:
             msg.stems_update(rowname, dmode, rowdata)
+        # save config
+        self._update_config()
     # check the divergence between analyconf.toml and datafile
     def check_planting_callable(self, withbatch=True):
         for msg in self._msglist:
             msg.check_branching(withbatch=withbatch)
+    # overwrite analyconf.toml
+    def _update_config(self):
+        # p-planting is possible to be modified
+        for msg, conf in zip(self._msglist, self._config.values()):
+            conf['planting']['p-planting'] = msg.get_planting_params()
+        super()._config_dump()

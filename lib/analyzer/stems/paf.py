@@ -11,6 +11,8 @@ class PaFAbstract(StemBase):
         # params = [ point, reverse ]
         self._point, self._reverse = params
         self._abspath = self.get_maindata().tolist()
+    def get_params(self):
+        return [self._point, self._reverse]
     # override interface
     def row_update(self, rowname, dmode, *rootval):
         # start base branching

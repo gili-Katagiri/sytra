@@ -53,6 +53,7 @@ class SytraDay():
     @classmethod
     def datemode(cls, cdate, ndate, defaultmode=0b100):
         dmode = defaultmode
+        # Type cdate and ndate are datetime.Date or pd.Timestamp
         # different month
         if cdate.month!=ndate.month: dmode+=0b001
         # different week
@@ -60,8 +61,10 @@ class SytraDay():
         
         return dmode
     @classmethod
-    def datemodes(cls, dates):
+    def datemodes(cls, dates: List[datetime.date]):
+        # Type dates[i] are datetime.Date or pd.Timestamp
         dmodes = []
+        # neccesary that date[-1]'s holidays is readable
         dates.append(cls.step_trading(dates[-1]))
         for cdate, ndate in zip(dates, dates[1:]):
             dmodes.append( cls.datemode(cdate, ndate) )
