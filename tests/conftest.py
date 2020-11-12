@@ -35,5 +35,17 @@ def sytra_file_fixture():
     
     # sbase.csv
     (testroot/'summary.csv').write_text(sum0713)
-
+    
+    # load style
     yield str(testroot)
+
+@pytest.fixture(scope='module')
+def sytra_follow_fixture(sytra_file_fixture):
+
+    # prepare Stocker as stck
+    stck = Stocker(sytra_file_fixture)
+    # follow, force: already exists summary.csv
+    stck.follow_interface(codes=[], force=True)
+    
+    # given style
+    return stck
