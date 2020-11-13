@@ -91,11 +91,10 @@ class BufStemPlanter(StemBranchGenerator):
     depend_rootcol = ('Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
 
     @classmethod
-    def _plant_file_init(cls, msgpath, pconf):
-        super()._plant_file_init(msgpath, pconf)
+    def plant_file_init(cls, msgpath, pconf):
+        super().plant_file_init(msgpath, pconf)
         (msgpath/'daily.csv').unlink()
         (msgpath/'daily.csv').symlink_to('../stock.csv')
 
-    @classmethod
-    def _plant_init(cls, rootpath, pconf, bconf, stockdata):
-        super()._plant_init(rootpath, pconf, bconf, stockdata, exclude=1)
+    def stems_batch(self, rootdf):
+        super().stems_batch(rootdf, skip=1)

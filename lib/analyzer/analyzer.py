@@ -27,10 +27,10 @@ class AnalyzerFilePath(SytraPath):
         return self._get_filepath('analyconf.toml', noerror=noerror)
 
 
-
 class AnalyzerFile(AnalyzerFilePath):
     ROOT_COLUMNS = ('Date', 'Open', 'High', 'Low', 'Close', 'Volume', 
                     'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
+
     # read 9999/primitive.csv
     @classmethod
     def get_primitivedata(cls, prpath: Path)-> pd.DataFrame:
@@ -40,6 +40,7 @@ class AnalyzerFile(AnalyzerFilePath):
         )
         return prim_df
     
+
     # read 9999/stock.csv
     def get_stockdata(self)-> pd.DataFrame:
         stock_path = self.get_stockpath()
@@ -54,9 +55,11 @@ class AnalyzerFile(AnalyzerFilePath):
         tomlstr = super().get_confpath().read_text()
         tomldic = toml.loads(tomlstr)
         return tomldic
+    # write analyconf.toml 
     def _dump_conf(self, tomldic: dict):
         tomlstr = toml.dumps(tomldic)
         super().get_confpath().write_text(tomlstr)
+
 
 class AnalyzerBase(AnalyzerFile):
 
@@ -132,30 +135,43 @@ class AnalyzerBase(AnalyzerFile):
         # read stock.csv
         self._stockdata = super().get_stockdata()
 
-
-    # make MSG directory and datafiles by p-planting with branch columns
-    def planting_init(self):
-        # create MSG's directory 9999/buffer/ 9999/pafclose/
-        for classid, msgconf in self._config.items():
-            # get class extended Multi-Stem Generator class
+    # Check that directory and datafiles are exist, branches are included
+    # if not, call batch process and save
+    def check_analyconf(self, withbatch=True):
+        # all effective stems check
+        for classid in self._config.keys():
+            # set var
             MSG = self.__class__.stemname_map[classid]
-            # decide stem root directory
-            msg_path = super()._get_filepath(classid, noerror=True)
-            pconf = msgconf['planting']
-            bconf = msgconf['branching']
-            # call MSG init
-            # stockdata from stock.csv, parsed_date index
-            msg_path.mkdir()
-            # pconf: _config['planting']['p-planting'] is updated
-            MSG.plant_init(msg_path, pconf, bconf, self._stockdata)
-            # save as analyconf.toml
-            self._config_dump()
+            conf = self._config[classid]
+            pconf, bconf = conf['planting'], conf['branching']
+
+            # directory is exists?
+            try: msgpath = super()._get_filepath(classid)
+            # if not, create and call planting init
+            except SytraPathError:
+                # create directory and datafiles with branch columns
+                print('[Create] call \'%s\' batch process.'%classid)
+                msgpath = super()._get_filepath(classid, noerror=True)
+                msgpath.mkdir()
+                MSG.plant_file_init(msgpath, pconf)
+                msg = MSG(msgpath, pconf, bconf)
+                msg.stems_batch(self._stockdata)
+
+            # already stems are exists
+            else: msg = MSG(msgpath, pconf, bconf) 
+            # all datafiles include branch columns writed analyconf
+            print('[Check \'%s\' branch]'%classid)
+            msg.check_branching(withbatch=withbatch)
+            # update p-planting list
+            pconf['p-planting'] = msg.get_planting_params()
+        self._config_dump()
 
     # dump dict(_config + _useless)
     def _config_dump(self):
         savedic = dict()
         savedic.update(**self._config, **self._useless)
         super()._dump_conf(savedic)
+
 
 class Analyzer(AnalyzerBase):
 
@@ -172,7 +188,6 @@ class Analyzer(AnalyzerBase):
         # planting need to read _X_df from datafiles
         # planting Multi-Stem Generator
         self._msglist = self._planting()
-
 
     def _planting(self):
         # Multi-Stem Generator instance list
@@ -199,10 +214,7 @@ class Analyzer(AnalyzerBase):
             msg.stems_update(rowname, dmode, rowdata)
         # save config
         self._update_config()
-    # check the divergence between analyconf.toml and datafile
-    def check_planting_callable(self, withbatch=True):
-        for msg in self._msglist:
-            msg.check_branching(withbatch=withbatch)
+
     # overwrite analyconf.toml
     def _update_config(self):
         # p-planting is possible to be modified

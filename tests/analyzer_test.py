@@ -12,7 +12,7 @@ def test_planting_init(sytra_follow_fixture):
     for code in stck.get_follows_tuple():
         dpath = stck.get_stockpath(code)
         anabase = AnalyzerBase(dpath)
-        anabase.planting_init()
+        anabase.check_analyconf(withbatch=True)
 
     # save
     stck.dump()

@@ -23,7 +23,7 @@ class MultiStemGenerator():
         else: return cols # flisted False: return str
     
     @classmethod
-    def _plant_file_init(cls, msgpath, pconf): 
+    def plant_file_init(cls, msgpath, pconf): 
         # preparing datafile enable to make Stem instance
         datafiles = pconf['datafiles']
         colstr = 'Date'
@@ -105,22 +105,6 @@ class StemBranchGenerator(MultiStemGenerator):
         'SMA': SMAGenerator
     }
 
-    @classmethod
-    def plant_init(cls, msgpath, pconf: dict, bconf: dict,\
-            stockdata: pd.DataFrame, skip: int=0): 
-        # create datafiles following analyconf
-        cls._plant_file_init(msgpath, pconf)
-        # create class instance
-        msg = cls( msgpath, pconf, bconf)
-        # create stem main data, no-branching
-        # stockdata from stock.csv, Index parsed to pd.TimeStamp
-        msg.stems_batch(stockdata, skip=skip)
-        # branching init by check bconf
-        msg.check_branching(withbatch=True)
-        # p-planting parameter update
-        pconf['p-planting']=msg.get_planting_params()
-
-
     # return listed BranchGenerator which is constracted by branch config
     @classmethod
     def _enum_branch(cls, branchconf: dict)-> list:
@@ -173,7 +157,7 @@ class StemBranchGenerator(MultiStemGenerator):
                 if withbatch:
                     print('[Call]: Batch process for branches which is not exist.')
                     self._branch_batch(bgene, nocols)
-            else: print('[Complete]:Already, Ready to Planting!')
+            else: print('[Complete]:Already, Ready to Branching!')
     
     # call batch process for branches which is not exist
     def _branch_batch(self, bgene, nocols: List[int]): 
