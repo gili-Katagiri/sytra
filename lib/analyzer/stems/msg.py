@@ -1,11 +1,9 @@
-from typing import List, Tuple, Set, Union
+from typing import List, Tuple, Set, Union, Optional
 
 import pandas as pd
 
-
 from analyzer.branchs.sma import SMAGenerator
 from util.sytraday import SytraDay
-
 
 # Planter
 class MultiStemGenerator():
@@ -233,11 +231,11 @@ class StemBase():
     # interface
     def axes_plot(self, ax, pltsize=30): pass
     # utility
-    def get_maindata(self):
-        return self._X_df.loc[:, self.__class__.main_column].to_numpy()
+    def get_maindata(self, end: Optional[pd.Timestamp]=None):
+        return self._X_df.loc[:end, self.__class__.main_column].to_numpy()
     def get_rownames(self):
         return self._X_df.index.values
-    def _X_update(self, rowx): self._X_df.loc[rowx.name]=rowx
+    def _X_update(self, rowx: pd.Series): self._X_df.loc[rowx.name]=rowx
     def _X_drop(self): self._X_df.drop(index=self._X_df.index[-1], inplace=True)
     def _X_save(self):
         simX = self._X_df.copy()
@@ -252,7 +250,7 @@ class StemBase():
         blist = self._parent_generator.branching()
         for branch in blist:
             # brrow is pd.Series
-            brrow = branch.apply(self)
+            brrow = branch.apply(self, rowname)
             idxs = brrow.index.tolist()
             # _X_df's latest row is updated, but NOT save ??
             self._X_df.loc[rowname, idxs] = brrow

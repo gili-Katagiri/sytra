@@ -1,1 +1,1 @@
-from .stocker import Stocker, StockerError
+from .stocker import Stocker

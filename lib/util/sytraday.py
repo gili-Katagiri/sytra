@@ -1,14 +1,7 @@
 import datetime
 from typing import Tuple, List
 
-from exceptions import SytraException
-
-class SytraDayError(SytraException):
-    def __init__(self, ermes: str = ''):
-        self.ermes = ermes
-    def __str__(self):
-        s = '[SytraDayError]' + self.ermes
-        return s
+from exceptions import SytraDayError
 
 class SytraDay():
     SFORM = '%Y-%m-%d'

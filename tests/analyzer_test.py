@@ -1,4 +1,6 @@
-from analyzer import Analyzer, AnalyzerBase, AnalyzerError
+from analyzer import Analyzer, AnalyzerBase
+
+from exceptions import AnalyzerError
 
 import pytest
 

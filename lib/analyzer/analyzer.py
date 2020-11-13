@@ -4,15 +4,12 @@ from typing import Union
 
 from pathlib import Path
 
-from exceptions import SytraException
+from exceptions import AnalyzerError
 from util.paths import SytraPath, SytraPathError
 from util.sytraday import SytraDay
 
 from .stems.bufstem import BufStemPlanter
 from .stems.paf import PaFClosePlanter
-
-class AnalyzerError(SytraException):
-    pass
 
 class AnalyzerFilePath(SytraPath):
         

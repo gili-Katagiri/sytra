@@ -6,14 +6,11 @@ import pandas as pd
 
 from typing import List, Tuple
 
-from exceptions import SytraException
+from exceptions import StockerError
 from util.paths import *
 from util.sytraday import *
 from analyzer import Analyzer
 
-
-class StockerError(SytraException):
-    pass
 
 class StockerFilePath(SytraPath):
     @classmethod
@@ -193,23 +190,6 @@ class Stocker(StockerFile):
                 f.rename(dname/'primitive.csv')
                 stocks.append(code)
         return stocks
-
-    '''
-    # allocate
-    def _allocate_stock(self, stock_code: int, **kwds):
-        # get row data from kwds dictionary and to DataFrame
-        rowdata = pd.DataFrame( [kwds[str(stock_code)]] )
-        # path
-        dname, fname = super().get_stockpath(stock_code)
-
-        # rowdata.Close - rowdata.Compare = day before Close
-        daybefore = self.__class__._filetail(fname)
-        if not math.isclose(rowdata.iat[0,4] - rowdata.iat[0,6], float(daybefore[4])):
-            raise StockerError('StockValueError')
-
-        # write as csv
-        rowdata.to_csv( fname, mode='a', header=False, index=False)
-    '''
 
     def _iterate_process(self, proc, codes: List[int]):
         failure_list = []

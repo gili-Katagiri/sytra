@@ -19,11 +19,11 @@ class BranchBase():
         self._col_names = [ base+str(i) for i in range( len(params) ) ]
 
     # branching entrypoint
-    def apply(self, stem):
+    def apply(self, stem, rowname: pd.Timestamp):
         # get desired columns values
         dcabst = self.__class__.desire_col_abstract
         if dcabst=='main':
-            dcvalues = stem.get_maindata()
+            dcvalues = stem.get_maindata(end=rowname)
         else: dcvalues=[]
         return self._branch_update(dcvalues)
     # batch process entrypoint

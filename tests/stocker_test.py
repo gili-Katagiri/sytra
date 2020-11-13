@@ -1,5 +1,6 @@
-from stocker import Stocker, StockerError
-from util.paths import SytraPathError
+from stocker import Stocker
+
+from exceptions import SytraPathError, StockerError
 
 import pytest
 

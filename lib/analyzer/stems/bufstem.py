@@ -1,4 +1,7 @@
+import math
 from .msg import StemBase, StemBranchGenerator
+
+from exceptions import StemError
 
 class BufStem(StemBase):
     columns = ('Open', 'High', 'Low', 'Close', 'Volume', 'Compare', 'MDB', 'MSB', 'RMB', 'Backword')
@@ -40,7 +43,8 @@ class BufStem(StemBase):
             rowold = rowx
             # specific day
             if dmode&self._tmode:
-                self._X_update(rowx)
+                # no check update
+                super()._X_update(rowx)
                 rowold = None  # restart
         # rowold is None: latest rowx is already exists-> not call _X_update
         # else: not exist latest rowx
@@ -70,6 +74,16 @@ class BufStem(StemBase):
         rowx['Volume'] += rownew['Volume']
         rowx['Compare'] += rownew['Compare']
         return rowx
+
+    def _X_update(self, rowx):
+        # close value immediately before
+        rowoldclose = self._X_df.iat[-1, 3]
+        # inference value from latest Close and Compare
+        infer = rowx.at['Close'] - rowx.at['Compare']
+        if not math.isclose( infer, rowoldclose ):
+            raise StemError('pre-close(%.1f) is separated from inference(%.1f)' \
+                                % (rowoldclose, infer) )
+        super()._X_update(rowx)
         
 class BufStemPlanter(StemBranchGenerator):
     PlantStem = BufStem

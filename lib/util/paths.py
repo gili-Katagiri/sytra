@@ -1,17 +1,6 @@
 from pathlib import Path
 
-from exceptions import SytraException
-
-class SytraPathError(SytraException):
-    def __init__( self, filepath, errorstr='No such file or directory.'):
-        self.filepath = filepath
-        self.errorstr = errorstr
-
-        super().__init__(filepath, errorstr)
-
-    def __str__( self):
-        s = '[SytraPathError] %s: \'%s\'' % (self.errorstr, str(self.filepath))
-        return s
+from exceptions import SytraPathError
 
 # super class for using abstract root directory
 class SytraPath():
