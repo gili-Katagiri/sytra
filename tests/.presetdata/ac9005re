@@ -1,0 +1,19 @@
+[buffer]
+validity = true
+
+[pafclose]
+validity = true
+
+[buffer.planting]
+datafiles = [ "daily.csv", "weekly.csv", "monthly.csv",]
+p-planting = [ [ 4, 1,], [ 2, 1,], [ 1, 1,],]
+
+[pafclose.planting]
+datafiles = [ "p10r3", "p15r3",]
+p-planting = [ [ 10, 3,], [ 15, 3,],]
+
+[buffer.branching.SMA]
+branch = [ 5, 8, 13]
+
+[pafclose.branching.SMA]
+branch = [ 5, 8, 13]

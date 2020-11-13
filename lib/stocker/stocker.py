@@ -1,4 +1,3 @@
-import linecache
 import toml
 import math
 from pathlib import Path
@@ -92,7 +91,7 @@ class StockerFile(StockerFilePath):
     # file -> date string, dataframe
     def _get_summary(self, summary_path: Path)-> Tuple[str, pd.DataFrame]:
         # load
-        summary_day = linecache.getline( str(summary_path), 1) .strip()
+        summary_day = summary_path.read_text().split('\n', 1)[0]
         summary = pd.read_csv( summary_path, skiprows=1, header=0,
                 index_col='Code', encoding='cp932')
         summary.insert( 0, 'Date', summary_day )

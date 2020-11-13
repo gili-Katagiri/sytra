@@ -139,6 +139,7 @@ class AnalyzerBase(AnalyzerFile):
     # if not, call batch process and save
     def check_analyconf(self, withbatch=True):
         # all effective stems check
+        print('\nCheck analyconf: %s...' %str(self.get_confpath()) )
         for classid in self._config.keys():
             # set var
             MSG = self.__class__.stemname_map[classid]
