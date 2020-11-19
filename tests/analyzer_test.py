@@ -18,12 +18,12 @@ def test_planting_init(sytra_follow_fixture):
     # save
     stck.dump()
 
-def test_allocate(sytra_follow_fixture):
+def test_analyze(sytra_follow_fixture):
     # get stck instance
     stck = sytra_follow_fixture
 
-    # allocate
-    stck.allocate_interface()
+    # analyze
+    stck.analyze_interface()
 
     # create sbase.csv
     stck.create_sbase()
@@ -32,7 +32,7 @@ def test_allocate(sytra_follow_fixture):
     stck.dump()
 
 def test_add_follow(sytra_add_follow_fixture):
-    # get stck instance: this instance is the same one at test_allocate
+    # get stck instance: this instance is the same one at test_analyze
     # processed from follow to prepare for analyconf.toml and summary.csv
     stck = sytra_add_follow_fixture
 
@@ -42,8 +42,8 @@ def test_add_follow(sytra_add_follow_fixture):
         anabase = AnalyzerBase(dpath)
         anabase.check_analyconf(withbatch=True)
 
-    # allocate
-    stck.allocate_interface()
+    # analyze
+    stck.analyze_interface()
     
     # post-process
     stck.create_sbase()

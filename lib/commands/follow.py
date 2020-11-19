@@ -38,11 +38,4 @@ def add_follow_parser( subparsers ):
             help='Leave following list in disorder after process.', dest='sort'
         )
 
-    parser_follow.add_argument(
-            '--rename', type=str, default='',
-            action='store', 
-            help='This depend on defollow option. Stocker renames \'stock.csv\' to given string.',
-            dest='renames'
-        )
-
     parser_follow.set_defaults(func=FollowAction) 
