@@ -16,8 +16,8 @@ branch = [5, 8, 13, 21]
 validity = true
 
 [pafclose.planting]
-datafiles = [ 'pafc_P1', 'pafc_P2']
-p-planting =[ [ 30, 3], [ 5, 3] ]
+datafiles = [ 'p30r3', ]
+p-planting =[ [ 30, 3], ]
 
 [pafclose.branching]
 [pafclose.branching.SMA]

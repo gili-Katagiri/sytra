@@ -1,6 +1,6 @@
 import argparse
 from commands.follow import add_follow_parser
-from commands.allocate import add_allocate_parser
+from commands.analyze import add_analyze_parser
 from commands.init import add_init_parser
 
 from stocker import Stocker
@@ -25,7 +25,7 @@ def add_rootoption(rootparser, STOCK_ROOT):
 
 
 def add_subcommands(subparsers):
-    add_allocate_parser(subparsers)
+    add_analyze_parser(subparsers)
     add_follow_parser(subparsers)
     add_init_parser(subparsers)
 

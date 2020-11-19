@@ -8,7 +8,7 @@ from typing import List, Tuple
 from exceptions import StockerError
 from util.paths import *
 from util.sytraday import *
-from analyzer import Analyzer
+from analyzer import Analyzer, AnalyzerBase
 
 
 class StockerFilePath(SytraPath):
@@ -115,7 +115,94 @@ class StockerFile(StockerFilePath):
             holist = self._get_holidays_list(f, int(year))
             SytraDay.add_holidays_list( year, holist)
 
-class Stocker(StockerFile):
+class StockerSystem(StockerFile):
+
+    def __init__( self, rootdir: str):
+        # Path.__init__()
+        super().__init__(rootdir)
+        self._load()
+    # save and load
+    def _load(self):
+        tomldic = super()._load_conf()
+        super()._set_sytra_holidays()
+        self._set_bytoml(tomldic)
+    def dump(self):
+        tomldic = self._to_tomldic()
+        super()._dump_conf(tomldic)
+    # toml <=> instance
+    def _set_bytoml( self, tomldic: dict):
+        # set follows list
+        self._follows_list = tomldic['stocker']['follows']
+        # protocol: add holidays before day init
+        daystr = tomldic['stocker']['days']['latest']
+        self._latest_update_day = SytraDay(daystr)
+    def _to_tomldic(self)-> dict:
+        return {'stocker':
+                    {
+                        'follows': self._follows_list,
+                        'days': self._latest_update_day.to_tomldic()
+                    }
+                }
+
+    # utility
+    def get_follows_tuple(self)-> Tuple[int]:
+        return tuple(self._follows_list)
+    def get_lateststr(self)-> str:
+        return self._latest_update_day.get_daystr()
+    def get_nextdaystr(self)-> str:
+        return self._latest_update_day.get_nextstr()
+    def _code_in_follows(self, stock_code: int)-> bool:
+        return stock_code in self.get_follows_tuple()
+    def _check_follow_callable(self)-> bool:
+        try: super().get_summarypath()
+        except SytraPathError: return True
+        return False
+    
+    # system process
+    # follow
+    def _follow_stock(self, stock_code: int):
+        # create 9999/
+        dname = super().get_stockpath(stock_code)
+        Analyzer.analyzer_init(dname, self.get_lateststr())
+        # add stock_code to _follows_list
+        self._follows_list.append( stock_code )
+    # defollow
+    def _defollow_stock(self, stock_code: int):
+        # 9999/ -> log/trash/9999/
+        self._defollow_process(stock_code)
+        # remove stock_code from _follows_list
+        self._follows_list.remove(stock_code)
+    # prepare/*.csv -> */primitive.csv
+    def _follow_deploy(self)-> List[int]:
+        path = super().get_preparepath()
+        stocks = []
+        for f in path.glob('*.csv'):
+            # /path/to/stocks/prepare/9999.csv -> 9999
+            code = int( f.stem )
+            if self._code_in_follows(code):
+                print('WARNING: Ignore %d process, which is already followed.'\
+                        % (code))
+            else:
+                # mkdir 9999/ and mv 9999.csv 9999/primitive.csv
+                dname = super().get_stockpath(code, noerror=True)
+                dname.mkdir()
+                f.rename(dname/'primitive.csv')
+                stocks.append(code)
+        return stocks
+    # stem generate
+    def _analyze_stock(self, code: int, datestr: str, dmode: int, rowx: pd.Series):
+        # create Analyzer interface
+        dpath = super().get_stockpath(code)
+        analy = Analyzer(dpath)
+        analy.daily_update(datestr, dmode, rowx)
+
+    def _check_analyconf(self, code: int, withbatch: bool):
+        dpath = super().get_stockpath(code)
+        anab = AnalyzerBase(dpath)
+        anab.check_analyconf(withbatch=withbatch)
+
+
+class Stocker(StockerSystem):
 
     @classmethod
     def stocker_init(cls, rootdir: str='', daystr: str='', follows: List[int]=[], **kwds):
@@ -136,58 +223,7 @@ class Stocker(StockerFile):
 
         (rootpath/'sytraconf.toml').write_text(tomlstr)
         
-
-    def __init__( self, rootdir: str):
-        # Path.__init__()
-        super().__init__(rootdir)
-        self._load()
-
-    # utility
-    def get_follows_tuple(self)-> Tuple[int]:
-        return tuple(self._follows_list)
-    def get_lateststr(self)-> str:
-        return self._latest_update_day.get_daystr()
-    def get_nextdaystr(self)-> str:
-        return self._latest_update_day.get_nextstr()
-    def _code_in_follows(self, stock_code: int)-> bool:
-        return stock_code in self.get_follows_tuple()
-    def _check_follow_callable(self)-> bool:
-        try: super().get_summarypath()
-        except SytraPathError: return True
-        return False
-    # follow
-    def _follow_stock(self, stock_code: int):
-        # create 9999/
-        dname = super().get_stockpath(stock_code)
-        Analyzer.analyzer_init(dname, self.get_lateststr())
-        # add stock_code to _follows_list
-        self._follows_list.append( stock_code )
-
-    # defollow
-    def _defollow_stock(self, stock_code: int):
-        # 9999/ -> log/trash/9999/
-        self._defollow_process(stock_code)
-        # remove stock_code from _follows_list
-        self._follows_list.remove(stock_code)
-
-    # prepare/*.csv -> */primitive.csv
-    def _follow_deploy(self)-> List[int]:
-        path = super().get_preparepath()
-        stocks = []
-        for f in path.glob('*.csv'):
-            # /path/to/stocks/prepare/9999.csv -> 9999
-            code = int( f.stem )
-            if self._code_in_follows(code):
-                print('WARNING: Ignore %d process, which is already followed.'\
-                        % (code))
-            else:
-                # mkdir 9999/ and mv 9999.csv 9999/primitive.csv
-                dname = super().get_stockpath(code, noerror=True)
-                dname.mkdir()
-                f.rename(dname/'primitive.csv')
-                stocks.append(code)
-        return stocks
-
+    # iterator for follow or defollow process
     def _iterate_process(self, proc, codes: List[int]):
         failure_list = []
         for code in codes:
@@ -201,7 +237,7 @@ class Stocker(StockerFile):
         return failure_list
 
 
-    # interfaces
+    # follow or defollow interfaces
     def follow_interface( self, codes: List[int]=[], defollow: bool=False, deploy: bool=True, force: bool=False, sort: bool=True, **elsekwds):
         """
         The reason for preparing dictionary:options is to process functions _follow_stock and _defollow_stock as same arguments.
@@ -247,33 +283,49 @@ class Stocker(StockerFile):
         if sort: self._follows_list.sort()
         return flist
 
-    def allocate_interface(self):
+    def analyze_interface(self, checkconf=False, withbatch=False, **elsekwds):
+        
+        # get follows
+        codes = self.get_follows_tuple()
+        failure_list = []
 
+        if checkconf:
+            for code in codes:
+                print('\nChecking %d...' % code, end='')
+                try: self._check_analyconf(code, withbatch)
+                except AnalyzerError as e:
+                    failure_list.append(code)
+                    print(e)
+            return failure_list
+    
+        # daily_update 
         # load
         spath = super().get_summarypath()
-        daystr, summary = super()._get_summary(spath)
-        codes = list(summary.index)
-
-        # check 
-        if daystr!=self.get_nextdaystr(): raise StockerError('StockDayError')
-        if tuple(codes)!=self.get_follows_tuple():
-            raise StockerError('StockKeyError')
+        datestr, summary = super()._get_summary(spath)
+        scodes = tuple(summary.index)
+        if datestr!=self.get_nextdaystr():
+            raise StockerError('Scheduled next update date is %s, but summary has %s'%(self.get_nextdaystr, datestr))
+        if scodes != codes:
+            raise StockerError('summary has incomplete codes as row.')
         
-        # get dmode 
-        cdate = SytraDay(daystr)
-        dmode = cdate.get_dmode()
-
-        # allocate
-        for code, rowx in summary.iterrows():
-            # create Analyzer interface
-            dpath = super().get_stockpath(code)
-            analy = Analyzer(dpath)
-            analy.daily_update(cdate.get_daystr(), dmode, rowx)
+        # get dmode
+        sday = SytraDay(datestr)
+        dmode= sday.get_dmode()
         
-        # post-process
-        logpath = super().get_logpath() / (daystr.replace('-',''))
+        for code in codes:
+            print('Processing %d...' % code, end='')
+            try: self._analyze_stock(code, datestr, dmode, summary.loc[code])
+            except AnalyzerError as e:
+                failure_list.append(code)
+                print(e)
+            else: print('complete!')
+
+        # post process
+        logpath = super().get_logpath() / (datestr.replace('-',''))
         spath.rename(logpath)
         self._latest_update_day.day_advance()
+
+        return failure_list
         
     # create sbase.csv
     def create_sbase(self):
@@ -285,25 +337,3 @@ class Stocker(StockerFile):
         print(sbase.head(1).to_csv(None, index=False))
         print('...')
 
-    # save and load
-    def _load(self):
-        tomldic = super()._load_conf()
-        super()._set_sytra_holidays()
-        self._set_bytoml(tomldic)
-    def dump(self):
-        tomldic = self._to_tomldic()
-        super()._dump_conf(tomldic)
-    # toml <=> instance
-    def _set_bytoml( self, tomldic: dict):
-        # set follows list
-        self._follows_list = tomldic['stocker']['follows']
-        # protocol: add holidays before day init
-        daystr = tomldic['stocker']['days']['latest']
-        self._latest_update_day = SytraDay(daystr)
-    def _to_tomldic(self)-> dict:
-        return {'stocker':
-                    {
-                        'follows': self._follows_list,
-                        'days': self._latest_update_day.to_tomldic()
-                    }
-                }
