@@ -19,6 +19,7 @@ At first, you have to call init process for make directories.
 ```
 The option `--root-directory` specify the stock data location[^1].
 [^1]:path/to/stockroot/ is not sytra system root.
+
 ---
 
 ### follow
