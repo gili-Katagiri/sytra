@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-lib = Path(__file__,'../../lib').resolve()
+lib = Path(__file__,'../../sytra/lib').resolve(strict=True)
 sys.path.insert(0, str(lib))
 
 from stocker import Stocker
