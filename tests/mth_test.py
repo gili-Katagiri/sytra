@@ -1,5 +1,5 @@
 import pytest
-from lib.util import mthtools as mth
+from util import mthtools as mth
 
 @pytest.fixture(scope='class')
 def fixture_point():
