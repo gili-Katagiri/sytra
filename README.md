@@ -108,4 +108,94 @@ and dependent environment, tools and settings are too complex to use.*
 
 ---
 If you have prepared `STOCKROOT/summary.csv`, exec `sytra analyze`.
-This command generate and store data for analysis following `analyconf.toml`.
+This command generate and store data for analysis according to `analyconf.toml`.
+
+## Sample Flow
+The sytra workflow consists of data preparation and `follow` or `analyze` command.
+Try how to use `sytra` with the sample in `sytra/data_sample`.
+
+---
+***Note:** Keep in mind that the data you want to analyze must be prepared by yourself*.
+
+---
+***Note:** If you installed using Docker,
+run `/bin/bash` in a container created by sytra image in advance.*
+```bash
+    docker run -it -v sytra-stocks:/root/data sytra:latest /bin/bash
+```
+
+---
+
+If you have taken the above installing step, 
+the stocks directory-tree looks like below.
+```
+    $STOCKROOT/
+    |-- holidays
+    |-- log
+    |   `-- trash
+    |-- prepare
+    `-- sytraconf.toml
+```
+First, register the holiday data as file.
+Sytra requires yearly schedule with no stock-trading day.
+`data_sample/h2020` and `data_sample/h2021` are the correct one for it.
+```bash
+    # must be $STOCKROOT/holidays/YYYY.csv
+    cp data_sample/h2020 $STOCKROOT/holidays/2020.csv
+    cp data_sample/h2021 $STOCKROOT/holidays/2021.csv
+```
+
+There are two things to do before following
+1. move( or copy) the stock data to `prepare/`
+1. rewrite the 'latest' variable in `sytracong.toml`
+```bash
+    # copy sample to prepare/
+    # these are the sample stock data
+    cp data_sample/9999.csv $STOCKROOT/prepare
+    cp data_sample/1111.csv $STOCKROOT/prepare
+
+    # rewrite latest="..." -> latest="2020-07-10"
+    # Must match the latest date of the prepared data(9999.csv).
+    sed -i '$d' $STOCKROOT/sytraconf.toml
+    echo 'latest = "2020-07-13"' >> $STOCKROOT/sytraconf.toml
+```
+Now, you can use `follow` command.
+```bash
+    sytra follow
+```
+This is just a process 
+to make sytra recognize two sample stock data
+that are treated as code '1111' and '9999'.
+
+To generate data available to users, 
+it is important to make settings for individual stocks
+and call `analyze -C`.
+The prepared `ac1111` and `ac9999` can be used as `analyconf.toml`.
+```bash
+    # there is also a default config file
+    cp -f data_sample/ac1111 $STOCKROOT/1111/analyconf.toml
+    cp -f data_sample/ac9999 $STOCKROOT/9999/analyconf.toml
+
+    # data generation according to analyconf.toml
+    sytra analyze -C
+```
+
+Next, if you get the data for 2020-07-13(sample filename: 'summary\_0713.csv'),
+it must be as `$STOCKROOT/summary.csv`.
+And if so, it is possible to call `analyze`.
+```bash
+    # must be $STOCKROOT/summary.csv'
+    cp data_sample/summary_0713.csv $STOCKROOT/summary.csv
+
+    # data generation according to analyconf.toml
+    sytra analyze
+    # summary.csv is moved into $STOCKROOT/log/%Y%m%d
+```
+
+Delete the code you no longer need to analyze
+with the `follow` and `-d` option.
+The specified code is no longer recognaized by sytra.
+```bash
+    # data will be moved to the $STOCKROOT/loga/trash
+    sytra follow -d 1111 9999
+```
