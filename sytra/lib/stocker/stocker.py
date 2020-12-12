@@ -266,7 +266,7 @@ class Stocker(StockerSystem):
         for code in codes:
             # follow process need not exists the code in follows: False
             # defollow process need to exists the code in follows: True
-            if self._code_in_follows is defollow:
+            if self._code_in_follows(code) is not defollow:
                 print('[WARNING]: %d is irregal position.'%(code))
                 return codes
         
