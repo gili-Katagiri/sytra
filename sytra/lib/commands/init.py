@@ -17,7 +17,7 @@ def add_init_parser(subparsers):
         )
 
     parser_init.add_argument(
-            '--follows-list', nargs='+', type=int,
+            '--follows-list', default=[], nargs='+', type=int,
             help='Add given list to follows as already following list.',
             dest='follows'
         )

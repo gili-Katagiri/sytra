@@ -3,4 +3,4 @@ __pycache__
 stocks/
 /dist/
 testocks/
-/env
+sytra/env
