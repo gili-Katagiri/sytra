@@ -157,7 +157,7 @@ There are two things to do before following
     # rewrite latest="..." -> latest="2020-07-10"
     # Must match the latest date of the prepared data(9999.csv).
     sed -i '$d' $STOCKROOT/sytraconf.toml
-    echo 'latest = "2020-07-13"' >> $STOCKROOT/sytraconf.toml
+    echo 'latest = "2020-07-10"' >> $STOCKROOT/sytraconf.toml
 ```
 Now, you can use `follow` command.
 ```bash
