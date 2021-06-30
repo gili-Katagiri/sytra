@@ -5,7 +5,7 @@ import pandas as pd
 
 from typing import List, Tuple
 
-from exceptions import StockerError
+from exceptions import StockerError, AnalyzerError
 from util.paths import *
 from util.sytraday import *
 from analyzer import Analyzer, AnalyzerBase
